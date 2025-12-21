@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const cron = require("node-cron");
 
+// 🤖 CLIENT DISCORD
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -16,9 +17,10 @@ const ROLE_ID = "1449815862168129708";
 // ✅ BOT PRÊT
 client.once("ready", () => {
   console.log("Bot connecté !");
+  console.log("Heure serveur :", new Date().toString());
 });
 
-// 🧪 COMMANDE TEST (PAS DE CRON)
+// 🧪 COMMANDE TEST MANUELLE
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
 
@@ -27,15 +29,25 @@ client.on("messageCreate", async message => {
   }
 });
 
-// ⏰ MESSAGE AUTOMATIQUE TOUS LES JOURS À 14h59 (CRON)
-cron.schedule("59 14 * * *", async () => {
-  const channel = await client.channels.fetch(CHANNEL_ID);
-  if (!channel) return;
+// ⏰ MESSAGE AUTOMATIQUE TOUS LES JOURS À 14h59 (HEURE FR)
+cron.schedule(
+  "59 14 * * *",
+  async () => {
+    try {
+      const channel = await client.channels.fetch(CHANNEL_ID);
+      if (!channel) return;
 
-  envoyerMessage(channel);
-});
+      envoyerMessage(channel);
+    } catch (err) {
+      console.error("Erreur cron :", err);
+    }
+  },
+  {
+    timezone: "Europe/Paris" // ✅ CORRECTION ICI
+  }
+);
 
-// 📤 FONCTION UNIQUE D’ENVOI
+// 📤 FONCTION D’ENVOI
 async function envoyerMessage(channel) {
   const random = Math.floor(Math.random() * 999) + 1;
 
@@ -61,4 +73,3 @@ Merci de respecter les consignes en vigueur et de vous référer aux responsable
 
 // 🔐 CONNEXION
 client.login(process.env.TOKEN);
-
