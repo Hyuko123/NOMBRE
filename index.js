@@ -85,4 +85,6 @@ Merci de respecter les consignes en vigueur et de vous référer aux responsable
 }, 60 * 1000);
 
 // 🔐 CONNEXION DU BOT
-client.login("MTQ1MjA5MjkyODMzMDU2NzcyMA.GJgFyy.XyzuoXEmWF5bKdFBRNiVzr2ZJnzC9fyXDREX3I");
+client.login(process.env.TOKEN);
+
+
