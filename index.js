@@ -27,8 +27,8 @@ client.on("messageCreate", async message => {
   }
 });
 
-// ⏰ MESSAGE AUTOMATIQUE TOUS LES JOURS À 15H (CRON)
-cron.schedule("0 15 * * *", async () => {
+// ⏰ MESSAGE AUTOMATIQUE TOUS LES JOURS À 14h59 (CRON)
+cron.schedule("59 14 * * *", async () => {
   const channel = await client.channels.fetch(CHANNEL_ID);
   if (!channel) return;
 
@@ -61,3 +61,4 @@ Merci de respecter les consignes en vigueur et de vous référer aux responsable
 
 // 🔐 CONNEXION
 client.login(process.env.TOKEN);
+
