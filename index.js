@@ -67,6 +67,47 @@ async function envoyerMessage(channel) {
     allowedMentions: { roles: [ROLE_ID] }
   });
 }
+// ================= RADIO =================
+if (command === "annonce") {
+  const texte = args.join(" ");
+  if (!texte) return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
+
+  // Supprime le message de commande
+  await message.delete().catch(() => {});
+
+  const embed = new EmbedBuilder()
+    .setColor("#f1c40f") // Jaune doré (annonce)
+    .setTitle("📢 Annonce Officielle — SunDay")
+    .setDescription(`
+━━━━━━━━━━━━━━━━━━━
+
+📝 **Information importante**
+
+${texte}
+
+━━━━━━━━━━━━━━━━━━━
+`)
+    .setThumbnail(message.guild.iconURL({ dynamic: true }))
+    .addFields(
+      {
+        name: "👤 Auteur",
+        value: `<@${message.author.id}>`,
+        inline: true,
+      },
+      {
+        name: "🕒 Date",
+        value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
+        inline: true,
+      }
+    )
+    .setFooter({
+      text: "SunDay • Restez informés",
+      iconURL: message.client.user.displayAvatarURL(),
+    })
+    .setTimestamp();
+
+  message.channel.send({ embeds: [embed] });
+}
 
 // ================= PANEL =================
 
@@ -236,3 +277,4 @@ async function log(content) {
 
 // 🔐 LOGIN
 client.login(process.env.TOKEN);
+
