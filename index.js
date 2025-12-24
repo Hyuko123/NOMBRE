@@ -76,9 +76,7 @@ client.on("messageCreate", async message => {
   // ---------- ANNONCE ----------
   if (command === "annonce") {
     const texte = args.join(" ");
-    if (!texte) {
-      return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
-    }
+    if (!texte) return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
 
     await message.delete().catch(() => {});
 
@@ -120,7 +118,7 @@ ${texte}
     );
 
     message.channel.send({
-      content: `🎫 **Support ${SERVER_NAME}**\nClique sur le bouton ci-dessous et explique ton problème.`,
+      content: `🎫 **Support ${SERVER_NAME}**\nClique sur le bouton ci-dessous.`,
       components: [row]
     });
   }
@@ -158,6 +156,7 @@ ${texte}
 
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
+  // ---------- BOUTON ----------
   if (interaction.isButton() && interaction.customId === "open_ticket") {
     const existing = interaction.guild.channels.cache.find(
       c => c.parentId === TICKET_CATEGORY_ID && c.topic === interaction.user.id
@@ -181,24 +180,44 @@ client.on("interactionCreate", async interaction => {
       .setRequired(true);
 
     modal.addComponents(new ActionRowBuilder().addComponents(input));
-    await interaction.showModal(modal);
+    return interaction.showModal(modal);
   }
 
-  if (interaction.type === InteractionType.ModalSubmit && interaction.customId === "ticket_modal") {
-    const reason = interaction.fields.getTextInputValue("reason");
+  // ---------- MODAL ----------
+  if (
+    interaction.type === InteractionType.ModalSubmit &&
+    interaction.customId === "ticket_modal"
+  ) {
+    // ⚠️ OBLIGATOIRE
+    await interaction.deferReply({ ephemeral: true });
 
-    const channel = await interaction.guild.channels.create({
-      name: `ticket-${interaction.user.username}`,
-      parent: TICKET_CATEGORY_ID,
-      topic: interaction.user.id,
-      permissionOverwrites: [
-        { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-      ]
-    });
+    try {
+      const reason = interaction.fields.getTextInputValue("reason");
 
-    channel.send(
+      const channel = await interaction.guild.channels.create({
+        name: `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+        parent: TICKET_CATEGORY_ID,
+        topic: interaction.user.id,
+        permissionOverwrites: [
+          { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+          {
+            id: interaction.user.id,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          },
+          {
+            id: STAFF_ROLE_ID,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          }
+        ]
+      });
+
+      await channel.send(
 `🎫 **NOUVEAU TICKET — ${SERVER_NAME}**
 
 👤 Utilisateur : ${interaction.user}
@@ -207,14 +226,19 @@ client.on("interactionCreate", async interaction => {
 
 Commandes :
 \`+close\` • \`+add @user\` • \`+remove @user\``
-    );
+      );
 
-    log(`📩 Ticket créé | ${channel.name} | ${interaction.user.tag}`);
+      await interaction.editReply({
+        content: `✅ Ton ticket a été créé avec succès : ${channel}`
+      });
 
-    interaction.reply({
-      content: `✅ Ton ticket a été créé : ${channel}`,
-      ephemeral: true
-    });
+      log(`📩 Ticket créé | ${channel.name} | ${interaction.user.tag}`);
+    } catch (err) {
+      console.error(err);
+      await interaction.editReply({
+        content: "❌ Une erreur est survenue lors de la création du ticket."
+      });
+    }
   }
 });
 
