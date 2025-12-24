@@ -134,10 +134,21 @@ client.on("messageCreate", async message => {
   if (!message.channel.name?.startsWith("ticket-")) return;
 
   // CLOSE
-  if (message.content === "+close") {
-    await envoyerTranscriptHTML(message.channel);
-    await log(`🔒 Ticket fermé | ${message.channel.name} | par ${message.author.tag}`);
-    message.channel.delete();
+      if (command === "close") {
+      const attachment = await transcripts.createTranscript(message.channel, {
+        limit: -1,
+        filename: `${message.channel.name}.html`
+      });
+
+      const userId = message.channel.topic;
+      if (userId) {
+        const user = await client.users.fetch(userId);
+        await user.send({
+          content: "📄 Transcript de ton ticket SunDay",
+          files: [attachment]
+        });
+      }
+
   }
 
   // ADD
@@ -277,4 +288,5 @@ async function log(content) {
 
 // 🔐 LOGIN
 client.login(process.env.TOKEN);
+
 
