@@ -92,20 +92,28 @@ client.on("messageCreate", async message => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // ---------- ANNONCE ----------
-  if (command === "annonce") {
-    const texte = args.join(" ");
-    if (!texte) return;
+// ---------- ANNONCE ----------
+if (command === "annonce") {
+  const texte = args.join(" ");
+  if (!texte) return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
 
-    await message.delete().catch(() => {});
-    const embed = new EmbedBuilder()
-      .setColor("#f1c40f")
-      .setTitle(`📢 Annonce — ${SERVER_NAME}`)
-      .setDescription(texte)
-      .setTimestamp();
+  await message.delete().catch(() => {});
 
-    message.channel.send({ embeds: [embed] });
-  }
+  const embed = new EmbedBuilder()
+    .setColor("#f1c40f")
+    .setTitle(`📢 Annonce — ${SERVER_NAME}`)
+    .setDescription(texte)
+    .setTimestamp()
+    .setFooter({ text: SERVER_NAME });
+
+  message.channel.send({
+    content: `<@&1449815862168129708>`, // 🔔 PING OBLIGATOIRE
+    embeds: [embed],
+    allowedMentions: {
+      roles: ["1449815862168129708"] // 🔒 sécurité
+    }
+  });
+}
 
   // ---------- PANEL ----------
   if (command === "ticketpanel" && message.channel.id === PANEL_CHANNEL_ID) {
@@ -233,3 +241,4 @@ body { background:#313338; color:#dcddde; font-family:Arial; padding:20px }
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
