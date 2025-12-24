@@ -32,8 +32,10 @@ const LOG_CHANNEL_ID = "1453447170240811069";
 const PANEL_CHANNEL_ID = "1449818419083087902";
 
 // COMPTEUR MEMBRES
-const MEMBER_COUNT_CATEGORY_ID = "1453528842659561584";
 const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
+
+// AVERTISSEMENT
+const WARN_3_ROLE_ID = "1452056340607537364";
 
 // ================= CLIENT =================
 const client = new Client({
@@ -46,43 +48,53 @@ const client = new Client({
 });
 
 client.once("ready", () => {
-  console.log(`✅ Bot ${SERVER_NAME} connecté (Railway safe)`);
-
-  // Initialisation compteur membres
-  client.guilds.cache.forEach(guild => {
-    updateMemberCount(guild);
-  });
+  console.log(`✅ Bot ${SERVER_NAME} connecté`);
+  client.guilds.cache.forEach(guild => updateMemberCount(guild));
 });
 
 // ================= COMPTEUR MEMBRES =================
 async function updateMemberCount(guild) {
   const channel = guild.channels.cache.get(MEMBER_COUNT_CHANNEL_ID);
   if (!channel) return;
-
-  const count = guild.memberCount;
-  channel.setName(`👥 Membres : ${count}`).catch(() => {});
+  channel.setName(`👥 Membres : ${guild.memberCount}`).catch(() => {});
 }
 
-client.on("guildMemberAdd", member => {
-  updateMemberCount(member.guild);
-});
-
-client.on("guildMemberRemove", member => {
-  updateMemberCount(member.guild);
-});
+client.on("guildMemberAdd", member => updateMemberCount(member.guild));
+client.on("guildMemberRemove", member => updateMemberCount(member.guild));
 
 // ================= RADIO =================
 cron.schedule("0 15 * * *", async () => {
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
-  if (channel) envoyerMessage(channel);
-});
+  if (!channel) return;
 
-function envoyerMessage(channel) {
   const random = Math.floor(Math.random() * 999) + 1;
   channel.send({
     content: `<@&${ROLE_ID}> 📻 **Changement de radio — ${SERVER_NAME}**\n🎲 Radio du jour : ${random}`,
     allowedMentions: { roles: [ROLE_ID] }
   });
+});
+
+// ================= FONCTION DM (DÉRANK) =================
+// ⚠️ C’EST LA LOGIQUE DE TA COMMANDE +dm
+async function executeDM(member, executor = null) {
+  try {
+    const rolesToRemove = member.roles.cache.filter(
+      r => r.id !== member.guild.id
+    );
+
+    await member.roles.remove(rolesToRemove);
+
+    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+    if (logChannel) {
+      logChannel.send(
+        `🔻 **DÉRANK**\n` +
+        `Utilisateur : ${member} (${member.user.tag})\n` +
+        `Source : ${executor ? executor.tag : "Avertissement 3 (auto)"}`
+      );
+    }
+  } catch (err) {
+    console.error("Erreur DM :", err);
+  }
 }
 
 // ================= COMMANDES =================
@@ -92,28 +104,35 @@ client.on("messageCreate", async message => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-// ---------- ANNONCE ----------
-if (command === "annonce") {
-  const texte = args.join(" ");
-  if (!texte) return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
+  // ---------- ANNONCE ----------
+  if (command === "annonce") {
+    const texte = args.join(" ");
+    if (!texte) return message.reply("❌ Contenu manquant.");
 
-  await message.delete().catch(() => {});
+    await message.delete().catch(() => {});
 
-  const embed = new EmbedBuilder()
-    .setColor("#f1c40f")
-    .setTitle(`📢 Annonce — ${SERVER_NAME}`)
-    .setDescription(texte)
-    .setTimestamp()
-    .setFooter({ text: SERVER_NAME });
+    const embed = new EmbedBuilder()
+      .setColor("#f1c40f")
+      .setTitle(`📢 Annonce — ${SERVER_NAME}`)
+      .setDescription(texte)
+      .setTimestamp()
+      .setFooter({ text: SERVER_NAME });
 
-  message.channel.send({
-    content: `<@&1449815862168129708>`, // 🔔 PING OBLIGATOIRE
-    embeds: [embed],
-    allowedMentions: {
-      roles: ["1449815862168129708"] // 🔒 sécurité
-    }
-  });
-}
+    message.channel.send({
+      content: `<@&${ROLE_ID}>`,
+      embeds: [embed],
+      allowedMentions: { roles: [ROLE_ID] }
+    });
+  }
+
+  // ---------- DM (DÉRANK MANUEL) ----------
+  if (command === "dm") {
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("❌ Mentionne un utilisateur.");
+
+    await executeDM(member, message.author);
+    message.reply(`✅ ${member.user.tag} a été dérank.`);
+  }
 
   // ---------- PANEL ----------
   if (command === "ticketpanel" && message.channel.id === PANEL_CHANNEL_ID) {
@@ -239,6 +258,15 @@ body { background:#313338; color:#dcddde; font-family:Arial; padding:20px }
   return filePath;
 }
 
+// ================= AUTO AVERT 3 → DM =================
+client.on("guildMemberUpdate", async (oldMember, newMember) => {
+  const hadWarn3 = oldMember.roles.cache.has(WARN_3_ROLE_ID);
+  const hasWarn3 = newMember.roles.cache.has(WARN_3_ROLE_ID);
+
+  if (!hadWarn3 && hasWarn3) {
+    await executeDM(newMember, null);
+  }
+});
+
 // ================= LOGIN =================
 client.login(TOKEN);
-
