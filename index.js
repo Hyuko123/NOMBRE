@@ -31,6 +31,10 @@ const STAFF_ROLE_ID = "1449815862168129708";
 const LOG_CHANNEL_ID = "1453447170240811069";
 const PANEL_CHANNEL_ID = "1449818419083087902";
 
+// COMPTEUR MEMBRES
+const MEMBER_COUNT_CATEGORY_ID = "1453528842659561584";
+const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
+
 // ================= CLIENT =================
 const client = new Client({
   intents: [
@@ -43,6 +47,28 @@ const client = new Client({
 
 client.once("ready", () => {
   console.log(`✅ Bot ${SERVER_NAME} connecté (Railway safe)`);
+
+  // Initialisation compteur membres
+  client.guilds.cache.forEach(guild => {
+    updateMemberCount(guild);
+  });
+});
+
+// ================= COMPTEUR MEMBRES =================
+async function updateMemberCount(guild) {
+  const channel = guild.channels.cache.get(MEMBER_COUNT_CHANNEL_ID);
+  if (!channel) return;
+
+  const count = guild.memberCount;
+  channel.setName(`👥 Membres : ${count}`).catch(() => {});
+}
+
+client.on("guildMemberAdd", member => {
+  updateMemberCount(member.guild);
+});
+
+client.on("guildMemberRemove", member => {
+  updateMemberCount(member.guild);
 });
 
 // ================= RADIO =================
@@ -166,7 +192,7 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// ================= TRANSCRIPT HTML (DISCORD STYLE + STAFF) =================
+// ================= TRANSCRIPT HTML =================
 async function createTranscriptHTML(channel) {
   const messages = await channel.messages.fetch({ limit: 100 });
   const sorted = [...messages.values()].reverse();
