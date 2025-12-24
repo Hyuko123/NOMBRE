@@ -34,7 +34,9 @@ const PANEL_CHANNEL_ID = "1449818419083087902";
 // COMPTEUR MEMBRES
 const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
 
-// AVERTISSEMENT
+// AVERTISSEMENTS
+const WARN_1_ROLE_ID = "1452056200962113669";
+const WARN_2_ROLE_ID = "1452056289751601284";
 const WARN_3_ROLE_ID = "1452056340607537364";
 
 // ================= CLIENT =================
@@ -74,8 +76,7 @@ cron.schedule("0 15 * * *", async () => {
   });
 });
 
-// ================= FONCTION DM (DÉRANK) =================
-// ⚠️ C’EST LA LOGIQUE DE TA COMMANDE +dm
+// ================= DÉRANK (+dm) =================
 async function executeDM(member, executor = null) {
   try {
     const rolesToRemove = member.roles.cache.filter(
@@ -87,9 +88,7 @@ async function executeDM(member, executor = null) {
     const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
     if (logChannel) {
       logChannel.send(
-        `🔻 **DÉRANK**\n` +
-        `Utilisateur : ${member} (${member.user.tag})\n` +
-        `Source : ${executor ? executor.tag : "Avertissement 3 (auto)"}`
+        `🔻 **DÉRANK**\nUtilisateur : ${member} (${member.user.tag})\nSource : ${executor ? executor.tag : "Avertissement 3 (auto)"}`
       );
     }
   } catch (err) {
@@ -125,7 +124,41 @@ client.on("messageCreate", async message => {
     });
   }
 
-  // ---------- DM (DÉRANK MANUEL) ----------
+  // ---------- AVERT ----------
+  if (command === "avert") {
+    if (!message.member.roles.cache.has(STAFF_ROLE_ID))
+      return message.reply("❌ Permission refusée.");
+
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("❌ Mentionne un utilisateur.");
+
+    const has1 = member.roles.cache.has(WARN_1_ROLE_ID);
+    const has2 = member.roles.cache.has(WARN_2_ROLE_ID);
+    const has3 = member.roles.cache.has(WARN_3_ROLE_ID);
+
+    if (!has1 && !has2 && !has3) {
+      await member.roles.add(WARN_1_ROLE_ID);
+      return message.reply(`⚠️ ${member} reçoit **Avertissement 1**.`);
+    }
+
+    if (has1 && !has2) {
+      await member.roles.remove(WARN_1_ROLE_ID);
+      await member.roles.add(WARN_2_ROLE_ID);
+      return message.reply(`⚠️ ${member} passe à **Avertissement 2**.`);
+    }
+
+    if (has2 && !has3) {
+      await member.roles.remove(WARN_2_ROLE_ID);
+      await member.roles.add(WARN_3_ROLE_ID);
+      return message.reply(`🚨 ${member} reçoit **Avertissement 3**.`);
+    }
+
+    if (has3) {
+      return message.reply(`⛔ ${member} est déjà au maximum d’avertissements.`);
+    }
+  }
+
+  // ---------- DM MANUEL ----------
   if (command === "dm") {
     const member = message.mentions.members.first();
     if (!member) return message.reply("❌ Mentionne un utilisateur.");
@@ -258,7 +291,7 @@ body { background:#313338; color:#dcddde; font-family:Arial; padding:20px }
   return filePath;
 }
 
-// ================= AUTO AVERT 3 → DM =================
+// ================= AUTO AVERT 3 → DÉRANK =================
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
   const hadWarn3 = oldMember.roles.cache.has(WARN_3_ROLE_ID);
   const hasWarn3 = newMember.roles.cache.has(WARN_3_ROLE_ID);
