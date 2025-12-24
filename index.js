@@ -13,6 +13,8 @@ const {
 } = require("discord.js");
 
 const cron = require("node-cron");
+const fs = require("fs");
+const path = require("path");
 
 // ================= CONFIG =================
 const TOKEN = process.env.TOKEN;
@@ -60,6 +62,56 @@ async function envoyerMessage(channel) {
   });
 }
 
+// ================= TRANSCRIPT =================
+async function createTranscript(channel) {
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const sorted = [...messages.values()].reverse();
+
+  let html = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Transcript ${channel.name}</title>
+<style>
+body {
+  background:#0f0f0f;
+  color:#eee;
+  font-family:Arial;
+  padding:20px;
+}
+h2 { color:#f1c40f; }
+.message {
+  border-left:3px solid #f1c40f;
+  padding:8px;
+  margin-bottom:10px;
+}
+.author { font-weight:bold; }
+.time { font-size:11px; color:#aaa; }
+</style>
+</head>
+<body>
+
+<h2>Transcript — ${channel.name}</h2>
+<hr>
+`;
+
+  for (const msg of sorted) {
+    html += `
+<div class="message">
+  <div class="author">${msg.author.tag}</div>
+  <div class="time">${msg.createdAt.toLocaleString()}</div>
+  <div>${msg.content || "<i>Message sans texte</i>"}</div>
+</div>`;
+  }
+
+  html += "</body></html>";
+
+  const filePath = path.join(__dirname, `${channel.id}.html`);
+  fs.writeFileSync(filePath, html);
+  return filePath;
+}
+
 // ================= COMMANDES =================
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
@@ -68,48 +120,25 @@ client.on("messageCreate", async message => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // ---------- TEST ----------
-  if (command === "test") {
-    envoyerMessage(message.channel);
-  }
-
   // ---------- ANNONCE ----------
   if (command === "annonce") {
     const texte = args.join(" ");
-    if (!texte) return message.reply("❌ Merci d'indiquer le contenu de l'annonce.");
+    if (!texte) return;
 
     await message.delete().catch(() => {});
 
     const embed = new EmbedBuilder()
       .setColor("#f1c40f")
       .setTitle(`📢 Annonce Officielle — ${SERVER_NAME}`)
-      .setDescription(`
-━━━━━━━━━━━━━━━━━━━
-
-📝 **Information importante**
-
-${texte}
-
-━━━━━━━━━━━━━━━━━━━
-`)
-      .setThumbnail(message.guild.iconURL({ dynamic: true }))
-      .addFields(
-        { name: "👤 Auteur", value: `<@${message.author.id}>`, inline: true },
-        { name: "🕒 Date", value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
-      )
-      .setFooter({
-        text: `${SERVER_NAME} • Restez informés`,
-        iconURL: client.user.displayAvatarURL()
-      })
+      .setDescription(`━━━━━━━━━━━━━━━━━━━\n\n${texte}\n\n━━━━━━━━━━━━━━━━━━━`)
+      .setFooter({ text: SERVER_NAME })
       .setTimestamp();
 
     message.channel.send({ embeds: [embed] });
   }
 
   // ---------- PANEL ----------
-  if (command === "ticketpanel") {
-    if (message.channel.id !== PANEL_CHANNEL_ID) return;
-
+  if (command === "ticketpanel" && message.channel.id === PANEL_CHANNEL_ID) {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("open_ticket")
@@ -118,55 +147,52 @@ ${texte}
     );
 
     message.channel.send({
-      content: `🎫 **Support ${SERVER_NAME}**\nClique sur le bouton ci-dessous.`,
+      content: `🎫 **Support ${SERVER_NAME}**`,
       components: [row]
     });
   }
 
-  // ---------- COMMANDES TICKET ----------
+  // ---------- TICKETS ----------
   if (!message.channel.name?.startsWith("ticket-")) return;
 
   if (command === "close") {
-    await message.channel.send("🔒 Ticket fermé.");
-    await message.channel.delete().catch(() => {});
-  }
+    await message.channel.send("📄 Génération du transcript...");
 
-  if (command === "add") {
-    const user = message.mentions.users.first();
-    if (!user) return;
+    const filePath = await createTranscript(message.channel);
+    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
-    await message.channel.permissionOverwrites.edit(user.id, {
-      ViewChannel: true,
-      SendMessages: true
+    // MP utilisateur
+    const userId = message.channel.topic;
+    const user = await client.users.fetch(userId).catch(() => null);
+    if (user) {
+      user.send({
+        content: `📄 **Transcript de ton ticket — ${SERVER_NAME}**`,
+        files: [filePath]
+      }).catch(() => {});
+    }
+
+    // Logs
+    logChannel.send({
+      content: `📁 **Ticket fermé** : ${message.channel.name}`,
+      files: [filePath]
     });
 
-    message.channel.send(`➕ ${user} ajouté au ticket.`);
-    log(`➕ ${user.tag} ajouté à ${message.channel.name}`);
-  }
-
-  if (command === "remove") {
-    const user = message.mentions.users.first();
-    if (!user) return;
-
-    await message.channel.permissionOverwrites.delete(user.id);
-    message.channel.send(`➖ ${user} retiré du ticket.`);
-    log(`➖ ${user.tag} retiré de ${message.channel.name}`);
+    setTimeout(async () => {
+      fs.unlinkSync(filePath);
+      message.channel.delete().catch(() => {});
+    }, 3000);
   }
 });
 
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
-  // ---------- BOUTON ----------
   if (interaction.isButton() && interaction.customId === "open_ticket") {
     const existing = interaction.guild.channels.cache.find(
       c => c.parentId === TICKET_CATEGORY_ID && c.topic === interaction.user.id
     );
 
     if (existing) {
-      return interaction.reply({
-        content: `❌ Tu as déjà un ticket ouvert : ${existing}`,
-        ephemeral: true
-      });
+      return interaction.reply({ content: "❌ Ticket déjà ouvert.", ephemeral: true });
     }
 
     const modal = new ModalBuilder()
@@ -183,71 +209,26 @@ client.on("interactionCreate", async interaction => {
     return interaction.showModal(modal);
   }
 
-  // ---------- MODAL ----------
-  if (
-    interaction.type === InteractionType.ModalSubmit &&
-    interaction.customId === "ticket_modal"
-  ) {
-    // ⚠️ OBLIGATOIRE
+  if (interaction.type === InteractionType.ModalSubmit && interaction.customId === "ticket_modal") {
     await interaction.deferReply({ ephemeral: true });
 
-    try {
-      const reason = interaction.fields.getTextInputValue("reason");
+    const reason = interaction.fields.getTextInputValue("reason");
 
-      const channel = await interaction.guild.channels.create({
-        name: `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, ""),
-        parent: TICKET_CATEGORY_ID,
-        topic: interaction.user.id,
-        permissionOverwrites: [
-          { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-          {
-            id: interaction.user.id,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          },
-          {
-            id: STAFF_ROLE_ID,
-            allow: [
-              PermissionsBitField.Flags.ViewChannel,
-              PermissionsBitField.Flags.SendMessages
-            ]
-          }
-        ]
-      });
+    const channel = await interaction.guild.channels.create({
+      name: `ticket-${interaction.user.username}`.toLowerCase(),
+      parent: TICKET_CATEGORY_ID,
+      topic: interaction.user.id,
+      permissionOverwrites: [
+        { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
+        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel] }
+      ]
+    });
 
-      await channel.send(
-`🎫 **NOUVEAU TICKET — ${SERVER_NAME}**
-
-👤 Utilisateur : ${interaction.user}
-📝 Problème :
-> ${reason}
-
-Commandes :
-\`+close\` • \`+add @user\` • \`+remove @user\``
-      );
-
-      await interaction.editReply({
-        content: `✅ Ton ticket a été créé avec succès : ${channel}`
-      });
-
-      log(`📩 Ticket créé | ${channel.name} | ${interaction.user.tag}`);
-    } catch (err) {
-      console.error(err);
-      await interaction.editReply({
-        content: "❌ Une erreur est survenue lors de la création du ticket."
-      });
-    }
+    channel.send(`🎫 **Ticket ${SERVER_NAME}**\n> ${reason}`);
+    interaction.editReply({ content: `✅ Ticket créé : ${channel}` });
   }
 });
 
-// ================= LOGS =================
-async function log(content) {
-  const channel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-  if (channel) channel.send(content);
-}
-
 // ================= LOGIN =================
 client.login(TOKEN);
-
