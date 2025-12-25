@@ -120,6 +120,32 @@ client.once("ready", async () => {
 /* ================= INTERACTIONS ================= */
 
 client.on("interactionCreate", async interaction => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      await interaction.deferReply({ ephemeral: true });
+    }
+
+    if (interaction.commandName === "cmd") {
+      const embed = new EmbedBuilder()
+        .setTitle("📜 Commandes")
+        .setColor("#3498db")
+        .setDescription(
+          "**🎟️ Tickets**\n`/ticketpanel`\n\n" +
+          "**⚠️ Modération**\n`/avert`\n\n" +
+          "**🧑 Gang**\n`/gang add | remove | list`\n\n" +
+          "**📢 Annonce**\n`/annonce`"
+        );
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+  } catch (err) {
+    console.error("❌ ERREUR INTERACTION :", err);
+    if (!interaction.replied)
+      interaction.reply({ content: "❌ Erreur interne.", ephemeral: true });
+  }
+});
+
 
   /* ================= /cmd ================= */
   if (interaction.isChatInputCommand() && interaction.commandName === "cmd") {
