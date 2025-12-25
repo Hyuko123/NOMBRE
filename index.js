@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const {
   Client,
   GatewayIntentBits,
@@ -310,3 +312,4 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
