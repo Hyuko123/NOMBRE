@@ -21,23 +21,23 @@ const TOKEN = process.env.TOKEN;
 const PREFIX = "+";
 const SERVER_NAME = "70’s";
 
-// RADIO
-const CHANNEL_ID = "1449816618187227249";
-const ROLE_ID = "1449815862168129708";
-
-// TICKETS
-const TICKET_CATEGORY_ID = "1453524406499414192";
+// ROLES
+const PING_ROLE_ID = "1449815862168129708";
 const STAFF_ROLE_ID = "1449815862168129708";
-const LOG_CHANNEL_ID = "1453447170240811069";
-const PANEL_CHANNEL_ID = "1449818419083087902";
+const CITIZEN_ROLE_ID = "1452059862723985541";
 
-// COMPTEUR MEMBRES
-const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
-
-// AVERTISSEMENTS
 const WARN_1_ROLE_ID = "1452056200962113669";
 const WARN_2_ROLE_ID = "1452056289751601284";
 const WARN_3_ROLE_ID = "1452056340607537364";
+
+// CHANNELS
+const RADIO_CHANNEL_ID = "1449816618187227249";
+const PANEL_CHANNEL_ID = "1449818419083087902";
+const LOG_CHANNEL_ID = "1453447170240811069";
+const TICKET_CATEGORY_ID = "1453524406499414192";
+
+// MEMBER COUNT
+const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
 
 // ================= CLIENT =================
 const client = new Client({
@@ -54,7 +54,7 @@ client.once("ready", () => {
   client.guilds.cache.forEach(updateMemberCount);
 });
 
-// ================= COMPTEUR MEMBRES =================
+// ================= MEMBER COUNT =================
 async function updateMemberCount(guild) {
   const channel = guild.channels.cache.get(MEMBER_COUNT_CHANNEL_ID);
   if (channel) channel.setName(`👥 Membres : ${guild.memberCount}`).catch(() => {});
@@ -65,13 +65,13 @@ client.on("guildMemberRemove", m => updateMemberCount(m.guild));
 
 // ================= RADIO =================
 cron.schedule("0 15 * * *", async () => {
-  const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
+  const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(() => null);
   if (!channel) return;
 
   const random = Math.floor(Math.random() * 999) + 1;
   channel.send({
-    content: `<@&${ROLE_ID}> 📻 **Changement de radio — ${SERVER_NAME}**\n🎲 Radio du jour : ${random}`,
-    allowedMentions: { roles: [ROLE_ID] }
+    content: `<@&${PING_ROLE_ID}> 📻 **Radio du jour — ${SERVER_NAME}**\n🎲 Radio : ${random}`,
+    allowedMentions: { roles: [PING_ROLE_ID] }
   });
 });
 
@@ -96,9 +96,9 @@ client.on("messageCreate", async message => {
       .setTimestamp();
 
     return message.channel.send({
-      content: `<@&${ROLE_ID}>`,
+      content: `<@&${PING_ROLE_ID}>`,
       embeds: [embed],
-      allowedMentions: { roles: [ROLE_ID] }
+      allowedMentions: { roles: [PING_ROLE_ID] }
     });
   }
 
@@ -107,46 +107,35 @@ client.on("messageCreate", async message => {
     const member = message.mentions.members.first();
     if (!member) return message.reply("❌ Mentionne un utilisateur.");
 
+    const reason = args.slice(1).join(" ");
+    if (!reason) return message.reply("❌ Raison obligatoire.");
+
     const has1 = member.roles.cache.has(WARN_1_ROLE_ID);
     const has2 = member.roles.cache.has(WARN_2_ROLE_ID);
     const has3 = member.roles.cache.has(WARN_3_ROLE_ID);
 
-    // AVERT 1
-    if (!has1 && !has2 && !has3) {
+    if (!has1 && !has2) {
       await member.roles.add(WARN_1_ROLE_ID);
-      return message.reply(`⚠️ ${member} reçoit **Avertissement 1**.`);
+      return message.reply(`⚠️ ${member} reçoit **Avertissement 1**\n📄 ${reason}`);
     }
 
-    // AVERT 2
     if (has1 && !has2) {
       await member.roles.remove(WARN_1_ROLE_ID);
       await member.roles.add(WARN_2_ROLE_ID);
-      return message.reply(`⚠️ ${member} passe à **Avertissement 2**.`);
+      return message.reply(`⚠️ ${member} passe à **Avertissement 2**\n📄 ${reason}`);
     }
 
-    // AVERT 3 + DM AUTO
     if (has2 && !has3) {
       await member.roles.remove(WARN_2_ROLE_ID);
       await member.roles.add(WARN_3_ROLE_ID);
 
-      await message.reply(`🚨 ${member} reçoit **Avertissement 3**.`);
+      await message.reply(`🚨 ${member} reçoit **Avertissement 3**\n📄 ${reason}`);
 
-      // ⛔ DÉRANK AUTOMATIQUE
       await executeDM(member);
-
       return;
     }
 
-    return message.reply("❌ Cet utilisateur a déjà l'avertissement maximal.");
-  }
-
-  // ---------- DM (DÉRANK) ----------
-  if (command === "dm") {
-    const member = message.mentions.members.first();
-    if (!member) return message.reply("❌ Mentionne un utilisateur.");
-
-    await executeDM(member);
-    return message.reply(`⛔ ${member} a été dérank.`);
+    return message.reply("⛔ L'utilisateur a déjà été sanctionné.");
   }
 
   // ---------- PANEL ----------
@@ -158,31 +147,23 @@ client.on("messageCreate", async message => {
         .setStyle(ButtonStyle.Primary)
     );
 
-    return message.channel.send({
-      content: `🎫 **Support ${SERVER_NAME}**`,
-      components: [row]
-    });
+    return message.channel.send({ content: "🎫 Support", components: [row] });
   }
 
-  // ---------- TICKET ----------
-  if (!message.channel.name?.startsWith("ticket-")) return;
-
-  if (command === "close") {
-    await message.channel.send("📄 Création du transcript...");
-
+  // ---------- CLOSE ----------
+  if (command === "close" && message.channel.name?.startsWith("ticket-")) {
     const filePath = await createTranscriptHTML(message.channel);
     const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
-    const user = await client.users.fetch(message.channel.topic).catch(() => null);
-    if (user) {
-      await user.send({ files: [filePath] }).catch(() => {});
+    const userId = message.channel.topic;
+    if (userId) {
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) {
+        await user.send({ files: [filePath] }).catch(() => {});
+      }
     }
 
-    await logChannel.send({
-      content: `🔒 Ticket fermé : ${message.channel.name}`,
-      files: [filePath]
-    });
-
+    await logChannel.send({ files: [filePath] });
     setTimeout(() => {
       fs.unlinkSync(filePath);
       message.channel.delete().catch(() => {});
@@ -197,46 +178,52 @@ client.on("interactionCreate", async interaction => {
       .setCustomId("ticket_modal")
       .setTitle(`Ticket — ${SERVER_NAME}`);
 
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId("reason")
-          .setLabel("Explique ton problème")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-      )
-    );
+    const input = new TextInputBuilder()
+      .setCustomId("reason")
+      .setLabel("Explique ton problème")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
 
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
     return interaction.showModal(modal);
   }
 
   if (interaction.type === InteractionType.ModalSubmit) {
     await interaction.deferReply({ ephemeral: true });
 
+    const reason = interaction.fields.getTextInputValue("reason");
     const channel = await interaction.guild.channels.create({
       name: `ticket-${interaction.user.username}`.toLowerCase(),
       parent: TICKET_CATEGORY_ID,
       topic: interaction.user.id,
       permissionOverwrites: [
         { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel] }
+        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
       ]
     });
 
-    await channel.send(`🎫 **Ticket ${SERVER_NAME}**\n> ${interaction.fields.getTextInputValue("reason")}`);
+    channel.send(`🎫 **Ticket ${SERVER_NAME}**\n> ${reason}`);
     interaction.editReply({ content: `✅ Ticket créé : ${channel}` });
   }
 });
 
-// ================= DÉRANK =================
+// ================= DERANK =================
 async function executeDM(member) {
-  const roles = member.roles.cache.filter(r =>
-    r.id !== member.guild.id &&
-    ![WARN_1_ROLE_ID, WARN_2_ROLE_ID, WARN_3_ROLE_ID].includes(r.id)
-  );
+  for (const role of member.roles.cache.values()) {
+    if (
+      role.id === member.guild.id ||
+      role.id === CITIZEN_ROLE_ID ||
+      [WARN_1_ROLE_ID, WARN_2_ROLE_ID].includes(role.id)
+    ) continue;
 
-  await member.roles.remove(roles).catch(() => {});
+    if (!role.editable) continue;
+    await member.roles.remove(role).catch(() => {});
+  }
+
+  if (member.roles.cache.has(WARN_3_ROLE_ID)) {
+    await member.roles.remove(WARN_3_ROLE_ID).catch(() => {});
+  }
 }
 
 // ================= TRANSCRIPT =================
@@ -244,14 +231,10 @@ async function createTranscriptHTML(channel) {
   const messages = await channel.messages.fetch({ limit: 100 });
   const sorted = [...messages.values()].reverse();
 
-  let html = `<html><body style="background:#313338;color:#fff;font-family:Arial">
-<h2>Transcript ${channel.name}</h2><hr>`;
-
+  let html = `<html><body style="background:#313338;color:#dcddde;font-family:Arial">`;
   for (const msg of sorted) {
-    const isStaff = msg.member?.roles.cache.has(STAFF_ROLE_ID);
-    html += `<p><b>${msg.author.tag}</b> ${isStaff ? "[STAFF]" : ""}<br>${msg.content}</p>`;
+    html += `<p><b>${msg.author.tag}</b> : ${msg.content}</p>`;
   }
-
   html += "</body></html>";
 
   const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
