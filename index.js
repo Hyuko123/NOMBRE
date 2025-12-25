@@ -1,17 +1,11 @@
-require("dotenv").config();
-
 const {
   Client,
   GatewayIntentBits,
+  PermissionsBitField,
+  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  InteractionType,
-  PermissionsBitField,
-  EmbedBuilder,
   StringSelectMenuBuilder,
   REST,
   Routes,
@@ -22,24 +16,26 @@ const cron = require("node-cron");
 const fs = require("fs");
 const path = require("path");
 
-// ================= CONFIG =================
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
-const PREFIX = "+";
+/* ================= CONFIG ================= */
+
+const TOKEN = process.env.TOKEN; // Railway / GitHub
 const SERVER_NAME = "70’s";
 
-// ROLES
+const CLIENT_ID = "1451234567890123456";
+const GUILD_ID = "1449813863649509389";
+
+/* ROLES */
 const ROLE_70S_ID = "1449815862168129708";
 const ROLE_HG_ID = "1453173029072011424";
 const CITIZEN_ROLE_ID = "1452059862723985541";
 const STAFF_ROLE_ID = "1449815862168129708";
 
-// WARN
+/* WARN */
 const WARN_1_ROLE_ID = "1452056200962113669";
 const WARN_2_ROLE_ID = "1452056289751601284";
 const WARN_3_ROLE_ID = "1452056340607537364";
 
-// GANG
+/* GANG */
 const GANG_HIERARCHY = {
   og: "1449814259935739996",
   bigg: "1449814244001448157",
@@ -49,206 +45,156 @@ const GANG_HIERARCHY = {
 };
 const ALL_GANG_ROLES = Object.values(GANG_HIERARCHY);
 
-// CHANNELS
+/* CHANNELS */
 const RADIO_CHANNEL_ID = "1449816618187227249";
+const PANEL_CHANNEL_ID = "1449818419083087902";
 const LOG_CHANNEL_ID = "1453447170240811069";
 const TICKET_CATEGORY_ID = "1453524406499414192";
 const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
 
-// ================= CLIENT =================
+/* ================= CLIENT ================= */
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent
   ]
 });
 
-// ================= SLASH COMMAND REGISTER =================
-const commands = [
-  new SlashCommandBuilder()
-    .setName("cmd")
-    .setDescription("Afficher la liste des commandes du bot")
-].map(c => c.toJSON());
+/* ================= READY ================= */
 
-const rest = new REST({ version: "10" }).setToken(TOKEN);
-
-(async () => {
-  try {
-    await rest.put(
-      Routes.applicationCommands(CLIENT_ID),
-      { body: commands }
-    );
-    console.log("✅ Slash command /help enregistrée");
-  } catch (err) {
-    console.error(err);
-  }
-})();
-
-// ================= READY =================
-client.once("ready", () => {
+client.once("ready", async () => {
   console.log(`✅ Bot ${SERVER_NAME} connecté`);
+
+  /* MEMBER COUNT */
   client.guilds.cache.forEach(updateMemberCount);
+
+  /* SLASH COMMANDS */
+  const commands = [
+    new SlashCommandBuilder().setName("cmd").setDescription("📜 Liste des commandes"),
+
+    new SlashCommandBuilder().setName("ticketpanel").setDescription("🎟️ Panneau tickets"),
+
+    new SlashCommandBuilder()
+      .setName("annonce")
+      .setDescription("📢 Annonce")
+      .addStringOption(o =>
+        o.setName("texte").setDescription("Contenu").setRequired(true)
+      ),
+
+    new SlashCommandBuilder()
+      .setName("avert")
+      .setDescription("⚠️ Avertir un membre")
+      .addUserOption(o => o.setName("utilisateur").setRequired(true))
+      .addStringOption(o => o.setName("raison").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("gang")
+      .setDescription("🧑 Gestion gang")
+      .addSubcommand(s =>
+        s.setName("add")
+          .setDescription("Ajouter")
+          .addUserOption(o => o.setName("utilisateur").setRequired(true))
+          .addStringOption(o =>
+            o.setName("rang").setRequired(true).addChoices(
+              { name: "OG", value: "og" },
+              { name: "BIG G", value: "bigg" },
+              { name: "LIL GANGSTA", value: "lilgangsta" },
+              { name: "LIL HOMIES", value: "lilhomies" },
+              { name: "LITTLE BOYS", value: "littleboys" }
+            )
+          )
+      )
+      .addSubcommand(s =>
+        s.setName("remove")
+          .setDescription("Retirer")
+          .addUserOption(o => o.setName("utilisateur").setRequired(true))
+      )
+      .addSubcommand(s =>
+        s.setName("list").setDescription("Voir la hiérarchie")
+      )
+  ].map(c => c.toJSON());
+
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+
+  console.log("✅ Slash commands enregistrées");
 });
 
-// ================= MEMBER COUNT =================
+/* ================= MEMBER COUNT ================= */
+
 async function updateMemberCount(guild) {
   const channel = guild.channels.cache.get(MEMBER_COUNT_CHANNEL_ID);
   if (channel) channel.setName(`👥 Membres : ${guild.memberCount}`).catch(() => {});
 }
+
 client.on("guildMemberAdd", m => updateMemberCount(m.guild));
 client.on("guildMemberRemove", m => updateMemberCount(m.guild));
 
-// ================= RADIO =================
+/* ================= RADIO ================= */
+
 cron.schedule("0 15 * * *", async () => {
   const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(() => null);
   if (!channel) return;
 
-  const random = Math.floor(Math.random() * 999) + 1;
   channel.send({
-    content: `<@&${ROLE_70S_ID}> 📻 **Radio du jour — ${SERVER_NAME}**\n🎲 Radio : ${random}`,
+    content: `<@&${ROLE_70S_ID}> 📻 Radio du jour`,
     allowedMentions: { roles: [ROLE_70S_ID] }
   });
 });
 
-// ================= PREFIX COMMANDES =================
-client.on("messageCreate", async message => {
-  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+/* ================= INTERACTIONS ================= */
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand() && !interaction.isStringSelectMenu() && !interaction.isButton()) return;
 
-  // ---------- TICKET PANEL ----------
-  if (command === "ticketpanel") {
-    if (!message.member.roles.cache.has(STAFF_ROLE_ID))
-      return message.reply("❌ Staff uniquement.");
+  /* /cmd */
+  if (interaction.isChatInputCommand() && interaction.commandName === "cmd") {
+    const embed = new EmbedBuilder()
+      .setTitle("📜 Commandes")
+      .setColor("#3498db")
+      .setDescription(
+        "**🎟️ Tickets**\n`/ticketpanel`\n\n" +
+        "**⚠️ Modération**\n`/avert`\n\n" +
+        "**🧑 Gang**\n`/gang add | remove | list`\n\n" +
+        "**📢 Annonce**\n`/annonce`"
+      );
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
 
+  /* /ticketpanel */
+  if (interaction.commandName === "ticketpanel") {
     const menu = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId("ticket_select")
         .setPlaceholder("🎟️ Ouvrir un ticket")
-        .addOptions([
-          { label: "Aide", value: "Aide", emoji: "🆘" },
-          { label: "Recrutement", value: "Recrutement", emoji: "🧑‍💼" },
-          { label: "Problème avec un membre", value: "Problème", emoji: "⚠️" }
-        ])
+        .addOptions(
+          { label: "Aide", value: "aide", emoji: "🆘" },
+          { label: "Recrutement", value: "recrutement", emoji: "🧑‍💼" },
+          { label: "Problème", value: "probleme", emoji: "⚠️" }
+        )
     );
 
     const embed = new EmbedBuilder()
-      .setTitle("🎟️ Support 70’s")
-      .setDescription("Choisis une catégorie pour ouvrir un ticket.")
+      .setTitle("🎟️ Support")
+      .setDescription("Choisis une catégorie")
       .setColor("#f1c40f");
 
-    return message.channel.send({ embeds: [embed], components: [menu] });
+    const channel = interaction.guild.channels.cache.get(PANEL_CHANNEL_ID);
+    channel.send({ embeds: [embed], components: [menu] });
+
+    return interaction.reply({ content: "✅ Panel envoyé", ephemeral: true });
   }
 
-  // ---------- AVERT ----------
-  if (command === "avert") {
-    const member = message.mentions.members.first();
-    if (!member) return message.reply("❌ Mention manquante.");
-
-    const reason = args.slice(1).join(" ");
-    if (!reason) return message.reply("❌ Raison obligatoire.");
-
-    if (!member.roles.cache.has(WARN_1_ROLE_ID)) {
-      await member.roles.add(WARN_1_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 1**`);
-    }
-
-    if (!member.roles.cache.has(WARN_2_ROLE_ID)) {
-      await member.roles.remove(WARN_1_ROLE_ID);
-      await member.roles.add(WARN_2_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 2**`);
-    }
-
-    await member.roles.remove(WARN_2_ROLE_ID);
-    await member.roles.add(WARN_3_ROLE_ID);
-    await executeDM(member);
-    return message.reply(`🚨 ${member} → **Avertissement 3 (derank)**`);
-  }
-
-  // ---------- GANG ----------
-  if (command === "gang") {
-    const sub = args.shift()?.toLowerCase();
-
-    if (sub === "add") {
-      const member = message.mentions.members.first();
-      args.shift();
-      const rank = args[0]?.toLowerCase();
-
-      if (!member || !GANG_HIERARCHY[rank])
-        return message.reply("❌ +gang add @user og|bigg|lilgangsta|lilhomies|littleboys");
-
-      await member.roles.remove(ALL_GANG_ROLES);
-      await member.roles.remove(ROLE_HG_ID);
-      await member.roles.add(GANG_HIERARCHY[rank]);
-      await member.roles.add([ROLE_70S_ID, CITIZEN_ROLE_ID]);
-
-      if (rank === "og") await member.roles.add(ROLE_HG_ID);
-      return message.reply(`✅ ${member} ajouté **${rank.toUpperCase()}**`);
-    }
-
-    if (sub === "remove") {
-      const member = message.mentions.members.first();
-      if (!member) return message.reply("❌ Mention manquante.");
-      await member.roles.remove([...ALL_GANG_ROLES, ROLE_HG_ID, ROLE_70S_ID]);
-      return message.reply(`❌ ${member} retiré du gang`);
-    }
-
-    if (sub === "list") {
-      let desc = "";
-      for (const [rank, roleId] of Object.entries(GANG_HIERARCHY)) {
-        const role = message.guild.roles.cache.get(roleId);
-        const members = role?.members.map(m => `• ${m.user.tag}`).join("\n") || "—";
-        desc += `**${rank.toUpperCase()}**\n${members}\n\n`;
-      }
-
-      return message.channel.send({
-        embeds: [new EmbedBuilder().setTitle("📋 Gang").setDescription(desc)]
-      });
-    }
-  }
-});
-
-// ================= INTERACTIONS =================
-client.on("interactionCreate", async interaction => {
-
-  // ----- /help -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "cmd") {
-    const embed = new EmbedBuilder()
-      .setTitle("📌 Commandes du bot — 70’s")
-      .setColor("#f1c40f")
-      .setDescription(`
-**📢 Annonce**
-\`+annonce <message>\`
-
-**⚠️ Avertissements**
-\`+avert @user <raison>\`
-
-**🧢 Gangs**
-\`+gang add @user og|bigg|lilgangsta|lilhomies|littleboys\`
-\`+gang remove @user\`
-\`+gang list\`
-
-**🎟️ Tickets**
-\`+ticketpanel\` → ouvrir le panel  
-Boutons : Claim / Fermer
-
-**📻 Automatique**
-Radio quotidienne • Compteur membres
-      `);
-
-    return interaction.reply({ embeds: [embed], ephemeral: true });
-  }
-
-  // ----- Ticket menu -----
+  /* TICKET CREATE */
   if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
-    const guild = interaction.guild;
     const user = interaction.user;
+    const guild = interaction.guild;
 
     if (guild.channels.cache.find(c => c.topic === user.id))
-      return interaction.reply({ content: "❌ Ticket déjà ouvert.", ephemeral: true });
+      return interaction.reply({ content: "❌ Ticket déjà ouvert", ephemeral: true });
 
     const channel = await guild.channels.create({
       name: `ticket-${user.username}`,
@@ -257,61 +203,53 @@ Radio quotidienne • Compteur membres
       permissionOverwrites: [
         { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
         { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel] }
       ]
     });
 
     const buttons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("ticket_claim").setLabel("Claim").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("ticket_close").setLabel("Fermer").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("close").setLabel("Fermer").setStyle(ButtonStyle.Danger)
     );
 
-    await channel.send({
-      content: `🎟️ **Ticket ${interaction.values[0]}** — ${user}`,
-      components: [buttons]
-    });
-
-    return interaction.reply({ content: `✅ Ticket créé : ${channel}`, ephemeral: true });
+    channel.send({ content: `🎟️ Ticket de ${user}`, components: [buttons] });
+    return interaction.reply({ content: `✅ Ticket créé ${channel}`, ephemeral: true });
   }
 
-  if (interaction.isButton() && interaction.customId === "ticket_close") {
-    await interaction.reply("🔒 Fermeture...");
+  /* CLAIM */
+  if (interaction.isButton() && interaction.customId === "claim") {
+    return interaction.reply(`🧑‍✈️ Claim par ${interaction.user}`);
+  }
+
+  /* CLOSE */
+  if (interaction.isButton() && interaction.customId === "close") {
     await closeTicket(interaction.channel);
+    return interaction.reply("🔒 Ticket fermé");
   }
 });
 
-// ================= CLOSE / DERANK / TRANSCRIPT =================
-async function closeTicket(channel) {
-  const filePath = await createTranscriptHTML(channel);
-  const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-  await logChannel.send({ files: [filePath] });
-  setTimeout(() => {
-    fs.unlinkSync(filePath);
-    channel.delete().catch(() => {});
-  }, 4000);
-}
+/* ================= DERANK ================= */
 
 async function executeDM(member) {
   for (const role of member.roles.cache.values()) {
-    if (role.id === member.guild.id || role.id === CITIZEN_ROLE_ID) continue;
-    if (role.editable) await member.roles.remove(role).catch(() => {});
+    if (
+      role.id === member.guild.id ||
+      role.id === CITIZEN_ROLE_ID ||
+      [WARN_1_ROLE_ID, WARN_2_ROLE_ID].includes(role.id)
+    ) continue;
+    if (role.editable) await member.roles.remove(role);
   }
+  await member.roles.remove(WARN_3_ROLE_ID).catch(() => {});
 }
 
-async function createTranscriptHTML(channel) {
-  const messages = await channel.messages.fetch({ limit: 100 });
-  const sorted = [...messages.values()].reverse();
-  let html = `<html><body style="background:#313338;color:#dcddde">`;
-  for (const msg of sorted)
-    html += `<p><b>${msg.author.tag}</b> : ${msg.content}</p>`;
-  html += "</body></html>";
-  const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
-  fs.writeFileSync(filePath, html);
-  return filePath;
+/* ================= TICKET CLOSE ================= */
+
+async function closeTicket(channel) {
+  const log = await client.channels.fetch(LOG_CHANNEL_ID);
+  log.send(`📁 Ticket fermé : ${channel.name}`);
+  channel.delete().catch(() => {});
 }
 
-// ================= LOGIN =================
+/* ================= LOGIN ================= */
+
 client.login(TOKEN);
-
-
-
