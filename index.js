@@ -72,14 +72,25 @@ client.on("messageCreate", async message => {
         ])
     );
 
-    const embed = new EmbedBuilder()
-      .setTitle("🎟️ Support 70’s")
-      .setDescription("Choisis une catégorie pour ouvrir un ticket.")
-      .setColor("#f1c40f");
-
-    return message.channel.send({ embeds: [embed], components: [menu] });
-  }
-
+   const embed = new EmbedBuilder()
+  .setTitle("🎟️ Ticket 70’s")
+  .setDescription(
+    "**Bienvenue sur le support officiel de 70’s Crew** 👋\n\n" +
+    "Ce système de ticket est mis à votre disposition afin de traiter **toutes vos demandes** de manière rapide, claire et efficace.\n\n" +
+    "📌 **Vous pouvez ouvrir un ticket pour :**\n" +
+    "🆘 Obtenir de l’aide ou un renseignement\n" +
+    "🧑‍💼 Faire une **demande de recrutement**\n" +
+    "⚠️ Signaler un problème\n" +
+    "📂 Toute autre demande liée au groupe\n\n" +
+    "👉 **Sélectionnez la catégorie correspondante ci-dessous** afin que notre équipe puisse vous répondre dans les meilleurs délais.\n\n" +
+    "Merci de rester **clair, respectueux et patient** lors de votre échange avec le staff."
+  )
+  .setColor("#f1c40f")
+  .setFooter({
+    text: "70’s Crew • Support",
+    iconURL: client.user.displayAvatarURL()
+  })
+  .setTimestamp();
   // ================= 🧢 GANG =================
   if (command === "gang") {
     const sub = args.shift()?.toLowerCase();
@@ -217,3 +228,4 @@ async function closeTicket(channel, staffUser) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
