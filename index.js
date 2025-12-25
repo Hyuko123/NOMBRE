@@ -9,7 +9,8 @@ const {
   StringSelectMenuBuilder
 } = require("discord.js");
 
-const discordTranscripts = require("discord-html-transcripts");
+const fs = require("fs");
+const path = require("path");
 
 // ================= CONFIG =================
 const TOKEN = process.env.TOKEN;
@@ -145,13 +146,68 @@ client.on("interactionCreate", async interaction => {
 async function closeTicket(channel, staffUser) {
   const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
-  const transcript = await discordTranscripts.createTranscript(channel, {
-    limit: -1,
-    returnType: "attachment",
-    filename: `ticket-${channel.name}.html`,
-    saveImages: true,
-    poweredBy: true
-  });
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const sortedMessages = [...messages.values()].reverse();
+
+  let html = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Transcript ${channel.name}</title>
+<style>
+body {
+  background: #2b2d31;
+  color: #dcddde;
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+.header {
+  margin-bottom: 20px;
+}
+.message {
+  margin-bottom: 12px;
+}
+.author {
+  font-weight: bold;
+  color: #ffffff;
+}
+.time {
+  font-size: 12px;
+  color: #a0a0a0;
+  margin-left: 6px;
+}
+.content {
+  margin-left: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h2>🎟️ Ticket : ${channel.name}</h2>
+  <p>🛡️ Fermé par : ${staffUser.tag}</p>
+  <hr>
+</div>
+`;
+
+  for (const msg of sortedMessages) {
+    html += `
+<div class="message">
+  <span class="author">${msg.author.tag}</span>
+  <span class="time">${msg.createdAt.toLocaleString()}</span>
+  <div class="content">${msg.content || "[Pièce jointe]"}</div>
+</div>
+`;
+  }
+
+  html += `
+</body>
+</html>
+`;
+
+  const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
+  fs.writeFileSync(filePath, html);
 
   const embed = new EmbedBuilder()
     .setTitle("🎟️ Ticket fermé")
@@ -165,10 +221,11 @@ async function closeTicket(channel, staffUser) {
 
   await logChannel.send({
     embeds: [embed],
-    files: [transcript]
+    files: [filePath]
   });
 
   setTimeout(() => {
+    fs.unlinkSync(filePath);
     channel.delete().catch(() => {});
   }, 4000);
 }
