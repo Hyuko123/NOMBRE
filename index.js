@@ -51,7 +51,11 @@ client.once("ready", () => {
 
 // ================= COMMANDES =================
 client.on("messageCreate", async message => {
-  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+  console.log("MESSAGE:", message.content);
+
+  if (message.author.bot) return;
+  if (!message.content.startsWith(PREFIX)) return;
+
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift()?.toLowerCase();
@@ -228,4 +232,5 @@ async function closeTicket(channel, staffUser) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
 
