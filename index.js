@@ -295,7 +295,33 @@ async function createTranscriptHTML(channel) {
   fs.writeFileSync(filePath, html);
   return filePath;
 }
+  // ---------- ANNONCE ----------
+  if (command === "annonce") {
+    if (!message.member.roles.cache.has(STAFF_ROLE_ID))
+      return message.reply("❌ Staff uniquement.");
+
+    const content = args.join(" ");
+    if (!content)
+      return message.reply("❌ Merci d’écrire un message d’annonce.");
+
+    const embed = new EmbedBuilder()
+      .setTitle("📢 Annonce officielle — 70’s")
+      .setDescription(content)
+      .setColor("#e74c3c")
+      .setFooter({
+        text: `Annonce par ${message.author.tag}`,
+        iconURL: message.author.displayAvatarURL()
+      })
+      .setTimestamp();
+
+    await message.delete().catch(() => {});
+    return message.channel.send({
+      content: "@everyone",
+      embeds: [embed]
+    });
+  }
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
 
