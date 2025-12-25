@@ -66,30 +66,30 @@ client.once("ready", async () => {
   client.guilds.cache.forEach(updateMemberCount);
 
   // ===== PANEL TICKET =====
-  const panel = await client.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
-  if (panel) {
-    const menu = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId("ticket_select")
-        .setPlaceholder("🎟️ Ouvrir un ticket")
-        .addOptions([
-          { label: "Aide", value: "aide", emoji: "🆘" },
-          { label: "Recrutement", value: "recrutement", emoji: "🧑‍💼" },
-          { label: "Problème avec un membre", value: "probleme", emoji: "⚠️" }
-        ])
-    );
+ // ---------- TICKET PANEL ----------
+if (command === "ticketpanel") {
+  if (!message.member.roles.cache.has(STAFF_ROLE_ID))
+    return message.reply("❌ Staff uniquement.");
 
-    panel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🎟️ Support 70’s")
-          .setDescription("Choisis une catégorie pour ouvrir un ticket.")
-          .setColor("#f1c40f")
-      ],
-      components: [menu]
-    });
-  }
-});
+  const menu = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId("ticket_select")
+      .setPlaceholder("🎟️ Ouvrir un ticket")
+      .addOptions([
+        { label: "Aide", value: "aide", emoji: "🆘" },
+        { label: "Recrutement", value: "recrutement", emoji: "🧑‍💼" },
+        { label: "Problème avec un membre", value: "probleme", emoji: "⚠️" }
+      ])
+  );
+
+  const embed = new EmbedBuilder()
+    .setTitle("🎟️ Support 70’s")
+    .setDescription("Choisis une catégorie pour ouvrir un ticket.")
+    .setColor("#f1c40f");
+
+  return message.channel.send({ embeds: [embed], components: [menu] });
+}
+
 
 // ================= MEMBER COUNT =================
 async function updateMemberCount(guild) {
@@ -265,3 +265,4 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
