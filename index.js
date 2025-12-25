@@ -61,42 +61,16 @@ const client = new Client({
 });
 
 // ================= READY =================
-client.once("ready", async () => {
+client.once("ready", () => {
   console.log(`✅ Bot ${SERVER_NAME} connecté`);
   client.guilds.cache.forEach(updateMemberCount);
-
-  // ===== PANEL TICKET =====
- // ---------- TICKET PANEL ----------
-if (command === "ticketpanel") {
-  if (!message.member.roles.cache.has(STAFF_ROLE_ID))
-    return message.reply("❌ Staff uniquement.");
-
-  const menu = new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId("ticket_select")
-      .setPlaceholder("🎟️ Ouvrir un ticket")
-      .addOptions([
-        { label: "Aide", value: "aide", emoji: "🆘" },
-        { label: "Recrutement", value: "recrutement", emoji: "🧑‍💼" },
-        { label: "Problème avec un membre", value: "probleme", emoji: "⚠️" }
-      ])
-  );
-
-  const embed = new EmbedBuilder()
-    .setTitle("🎟️ Support 70’s")
-    .setDescription("Choisis une catégorie pour ouvrir un ticket.")
-    .setColor("#f1c40f");
-
-  return message.channel.send({ embeds: [embed], components: [menu] });
-}
-
+});
 
 // ================= MEMBER COUNT =================
 async function updateMemberCount(guild) {
   const channel = guild.channels.cache.get(MEMBER_COUNT_CHANNEL_ID);
   if (channel) channel.setName(`👥 Membres : ${guild.memberCount}`).catch(() => {});
 }
-
 client.on("guildMemberAdd", m => updateMemberCount(m.guild));
 client.on("guildMemberRemove", m => updateMemberCount(m.guild));
 
@@ -119,66 +93,112 @@ client.on("messageCreate", async message => {
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift().toLowerCase();
 
-  // ---------- ANNONCE ----------
-  if (command === "annonce") {
-    const texte = args.join(" ");
-    if (!texte) return message.reply("❌ Contenu manquant.");
+  // ---------- TICKET PANEL ----------
+  if (command === "ticketpanel") {
+    if (!message.member.roles.cache.has(STAFF_ROLE_ID))
+      return message.reply("❌ Staff uniquement.");
 
-    await message.delete().catch(() => {});
+    const menu = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("ticket_select")
+        .setPlaceholder("🎟️ Ouvrir un ticket")
+        .addOptions([
+          { label: "Aide", value: "Aide", emoji: "🆘" },
+          { label: "Recrutement", value: "Recrutement", emoji: "🧑‍💼" },
+          { label: "Problème avec un membre", value: "Problème", emoji: "⚠️" }
+        ])
+    );
+
     const embed = new EmbedBuilder()
-      .setColor("#f1c40f")
-      .setTitle(`📢 Annonce — ${SERVER_NAME}`)
-      .setDescription(texte)
-      .setTimestamp();
+      .setTitle("🎟️ Support 70’s")
+      .setDescription("Choisis une catégorie pour ouvrir un ticket.")
+      .setColor("#f1c40f");
 
-    return message.channel.send({
-      content: `<@&${ROLE_70S_ID}>`,
-      embeds: [embed],
-      allowedMentions: { roles: [ROLE_70S_ID] }
-    });
+    return message.channel.send({ embeds: [embed], components: [menu] });
   }
 
   // ---------- AVERT ----------
   if (command === "avert") {
     const member = message.mentions.members.first();
     if (!member) return message.reply("❌ Mention manquante.");
+
     const reason = args.slice(1).join(" ");
     if (!reason) return message.reply("❌ Raison obligatoire.");
 
     if (!member.roles.cache.has(WARN_1_ROLE_ID)) {
       await member.roles.add(WARN_1_ROLE_ID);
-      return message.reply(`⚠️ ${member} → Avert 1`);
+      return message.reply(`⚠️ ${member} → **Avertissement 1**\n📄 ${reason}`);
     }
 
     if (member.roles.cache.has(WARN_1_ROLE_ID) && !member.roles.cache.has(WARN_2_ROLE_ID)) {
       await member.roles.remove(WARN_1_ROLE_ID);
       await member.roles.add(WARN_2_ROLE_ID);
-      return message.reply(`⚠️ ${member} → Avert 2`);
+      return message.reply(`⚠️ ${member} → **Avertissement 2**\n📄 ${reason}`);
     }
 
-    await member.roles.remove(WARN_2_ROLE_ID);
-    await member.roles.add(WARN_3_ROLE_ID);
-    await executeDM(member);
-    return message.reply(`🚨 ${member} → Avert 3`);
+    if (member.roles.cache.has(WARN_2_ROLE_ID)) {
+      await member.roles.remove(WARN_2_ROLE_ID);
+      await member.roles.add(WARN_3_ROLE_ID);
+      await message.reply(`🚨 ${member} → **Avertissement 3**\n📄 ${reason}`);
+      await executeDM(member);
+    }
   }
 
-  // ---------- CLOSE TICKET ----------
-  if (command === "close" && message.channel.name?.startsWith("ticket-")) {
-    await closeTicket(message.channel);
+  // ---------- GANG ----------
+  if (command === "gang") {
+    const sub = args.shift()?.toLowerCase();
+
+    if (sub === "add") {
+      const member = message.mentions.members.first();
+      if (!member) return message.reply("❌ Mention manquante.");
+
+      args.shift();
+      const rank = args[0]?.toLowerCase();
+      if (!GANG_HIERARCHY[rank])
+        return message.reply("❌ og | bigg | lilgangsta | lilhomies | littleboys");
+
+      await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
+      await member.roles.remove(ROLE_HG_ID).catch(() => {});
+      await member.roles.add(GANG_HIERARCHY[rank]);
+      await member.roles.add([ROLE_70S_ID, CITIZEN_ROLE_ID]);
+
+      if (rank === "og") await member.roles.add(ROLE_HG_ID);
+
+      return message.reply(`✅ ${member} ajouté **${rank.toUpperCase()}**`);
+    }
+
+    if (sub === "remove") {
+      const member = message.mentions.members.first();
+      if (!member) return message.reply("❌ Mention manquante.");
+
+      await member.roles.remove([...ALL_GANG_ROLES, ROLE_HG_ID, ROLE_70S_ID]);
+      return message.reply(`❌ ${member} retiré du gang`);
+    }
+
+    if (sub === "list") {
+      let desc = "";
+      for (const [rank, roleId] of Object.entries(GANG_HIERARCHY)) {
+        const role = message.guild.roles.cache.get(roleId);
+        const members = role?.members.map(m => `• ${m.user.tag}`).join("\n") || "—";
+        desc += `**${rank.toUpperCase()}**\n${members}\n\n`;
+      }
+
+      return message.channel.send({
+        embeds: [new EmbedBuilder().setTitle("📋 Gang").setDescription(desc)]
+      });
+    }
   }
 });
 
-// ================= INTERACTIONS TICKETS =================
+// ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
 
-  // MENU
   if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
-    const user = interaction.user;
     const guild = interaction.guild;
+    const user = interaction.user;
 
-    if (guild.channels.cache.find(c => c.topic === user.id)) {
-      return interaction.reply({ content: "❌ Tu as déjà un ticket.", ephemeral: true });
-    }
+    if (guild.channels.cache.find(c => c.topic === user.id))
+      return interaction.reply({ content: "❌ Ticket déjà ouvert.", ephemeral: true });
 
     const channel = await guild.channels.create({
       name: `ticket-${user.username}`,
@@ -192,30 +212,32 @@ client.on("interactionCreate", async interaction => {
     });
 
     const buttons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("ticket_claim").setLabel("🧑‍✈️ Claim").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Fermer").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("ticket_claim").setLabel("Claim").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("ticket_close").setLabel("Fermer").setStyle(ButtonStyle.Danger)
     );
 
-    channel.send({ content: `🎟️ Ticket de ${user}`, components: [buttons] });
+    channel.send({
+      content: `🎟️ **Ticket ${interaction.values[0]}** — ${user}`,
+      components: [buttons]
+    });
+
     return interaction.reply({ content: `✅ Ticket créé : ${channel}`, ephemeral: true });
   }
 
-  // CLAIM
   if (interaction.isButton() && interaction.customId === "ticket_claim") {
     if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
       return interaction.reply({ content: "❌ Staff uniquement.", ephemeral: true });
 
-    return interaction.reply(`🧑‍✈️ Ticket claim par ${interaction.user}`);
+    return interaction.reply(`🧑‍✈️ Claim par ${interaction.user}`);
   }
 
-  // CLOSE
   if (interaction.isButton() && interaction.customId === "ticket_close") {
     await interaction.reply("🔒 Fermeture...");
     await closeTicket(interaction.channel);
   }
 });
 
-// ================= CLOSE FUNCTION =================
+// ================= CLOSE TICKET =================
 async function closeTicket(channel) {
   const filePath = await createTranscriptHTML(channel);
   const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
@@ -261,9 +283,7 @@ async function createTranscriptHTML(channel) {
   const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
   fs.writeFileSync(filePath, html);
   return filePath;
-});
+}
 
 // ================= LOGIN =================
 client.login(TOKEN);
-
-
