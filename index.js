@@ -9,7 +9,8 @@ const {
   TextInputStyle,
   InteractionType,
   PermissionsBitField,
-  EmbedBuilder
+  EmbedBuilder,
+  StringSelectMenuBuilder
 } = require("discord.js");
 
 const cron = require("node-cron");
@@ -59,9 +60,35 @@ const client = new Client({
   ]
 });
 
-client.once("ready", () => {
+// ================= READY =================
+client.once("ready", async () => {
   console.log(`✅ Bot ${SERVER_NAME} connecté`);
   client.guilds.cache.forEach(updateMemberCount);
+
+  // ===== PANEL TICKET =====
+  const panel = await client.channels.fetch(PANEL_CHANNEL_ID).catch(() => null);
+  if (panel) {
+    const menu = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("ticket_select")
+        .setPlaceholder("🎟️ Ouvrir un ticket")
+        .addOptions([
+          { label: "Aide", value: "aide", emoji: "🆘" },
+          { label: "Recrutement", value: "recrutement", emoji: "🧑‍💼" },
+          { label: "Problème avec un membre", value: "probleme", emoji: "⚠️" }
+        ])
+    );
+
+    panel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("🎟️ Support 70’s")
+          .setDescription("Choisis une catégorie pour ouvrir un ticket.")
+          .setColor("#f1c40f")
+      ],
+      components: [menu]
+    });
+  }
 });
 
 // ================= MEMBER COUNT =================
@@ -114,125 +141,97 @@ client.on("messageCreate", async message => {
   // ---------- AVERT ----------
   if (command === "avert") {
     const member = message.mentions.members.first();
-    if (!member) return message.reply("❌ Mentionne un utilisateur.");
+    if (!member) return message.reply("❌ Mention manquante.");
     const reason = args.slice(1).join(" ");
     if (!reason) return message.reply("❌ Raison obligatoire.");
 
     if (!member.roles.cache.has(WARN_1_ROLE_ID)) {
       await member.roles.add(WARN_1_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 1**\n📄 ${reason}`);
+      return message.reply(`⚠️ ${member} → Avert 1`);
     }
 
     if (member.roles.cache.has(WARN_1_ROLE_ID) && !member.roles.cache.has(WARN_2_ROLE_ID)) {
       await member.roles.remove(WARN_1_ROLE_ID);
       await member.roles.add(WARN_2_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 2**\n📄 ${reason}`);
+      return message.reply(`⚠️ ${member} → Avert 2`);
     }
 
-    if (member.roles.cache.has(WARN_2_ROLE_ID)) {
-      await member.roles.remove(WARN_2_ROLE_ID);
-      await member.roles.add(WARN_3_ROLE_ID);
-
-      await message.reply(`🚨 ${member} → **Avertissement 3**\n📄 ${reason}`);
-      await executeDM(member);
-      return;
-    }
+    await member.roles.remove(WARN_2_ROLE_ID);
+    await member.roles.add(WARN_3_ROLE_ID);
+    await executeDM(member);
+    return message.reply(`🚨 ${member} → Avert 3`);
   }
-
- // ---------- GANG ----------
-if (command === "gang") {
-  const sub = args.shift()?.toLowerCase();
-
-  // ===== ADD =====
-  if (sub === "add") {
-    const member = message.mentions.members.first();
-    if (!member) {
-      return message.reply("❌ Utilisation : `+gang add @user og|bigg|lilgangsta|lilhomies|littleboys`");
-    }
-
-    // 🔥 on enlève la mention des args
-    args.shift();
-    const rank = args[0]?.toLowerCase();
-
-    if (!rank || !GANG_HIERARCHY[rank]) {
-      return message.reply("❌ Rang invalide : og | bigg | lilgangsta | lilhomies | littleboys");
-    }
-
-    // Remove anciens rôles gang + HG
-    await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
-    await member.roles.remove(ROLE_HG_ID).catch(() => {});
-
-    // Ajout rôle gang
-    await member.roles.add(GANG_HIERARCHY[rank]);
-
-    // Rôles obligatoires
-    if (!member.roles.cache.has(CITIZEN_ROLE_ID))
-      await member.roles.add(CITIZEN_ROLE_ID);
-
-    if (!member.roles.cache.has(ROLE_70S_ID))
-      await member.roles.add(ROLE_70S_ID);
-
-    // HG uniquement pour OG
-    if (rank === "og") {
-      await member.roles.add(ROLE_HG_ID);
-    }
-
-    return message.reply(`✅ ${member} ajouté comme **${rank.toUpperCase()}**`);
-  }
-
-  // ===== REMOVE =====
-  if (sub === "remove") {
-    const member = message.mentions.members.first();
-    if (!member) return message.reply("❌ Mention manquante.");
-
-    await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
-    await member.roles.remove(ROLE_HG_ID).catch(() => {});
-    await member.roles.remove(ROLE_70S_ID).catch(() => {});
-
-    return message.reply(`❌ ${member} retiré du gang`);
-  }
-
-  // ===== LIST =====
-  if (sub === "list") {
-    let desc = "";
-
-    for (const [rank, roleId] of Object.entries(GANG_HIERARCHY)) {
-      const role = message.guild.roles.cache.get(roleId);
-      const members =
-        role && role.members.size > 0
-          ? role.members.map(m => `• ${m.user.tag}`).join("\n")
-          : "—";
-
-      desc += `**${rank.toUpperCase()}**\n${members}\n\n`;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle("📋 Hiérarchie du Gang")
-      .setColor("#f1c40f")
-      .setDescription(desc);
-
-    return message.channel.send({ embeds: [embed] });
-  }
-}
 
   // ---------- CLOSE TICKET ----------
   if (command === "close" && message.channel.name?.startsWith("ticket-")) {
-    const filePath = await createTranscriptHTML(message.channel);
-    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-
-    const userId = message.channel.topic;
-    if (userId) {
-      const user = await client.users.fetch(userId).catch(() => null);
-      if (user) await user.send({ files: [filePath] }).catch(() => {});
-    }
-
-    await logChannel.send({ files: [filePath] });
-    setTimeout(() => {
-      fs.unlinkSync(filePath);
-      message.channel.delete().catch(() => {});
-    }, 4000);
+    await closeTicket(message.channel);
   }
 });
+
+// ================= INTERACTIONS TICKETS =================
+client.on("interactionCreate", async interaction => {
+
+  // MENU
+  if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
+    const user = interaction.user;
+    const guild = interaction.guild;
+
+    if (guild.channels.cache.find(c => c.topic === user.id)) {
+      return interaction.reply({ content: "❌ Tu as déjà un ticket.", ephemeral: true });
+    }
+
+    const channel = await guild.channels.create({
+      name: `ticket-${user.username}`,
+      parent: TICKET_CATEGORY_ID,
+      topic: user.id,
+      permissionOverwrites: [
+        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
+        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+      ]
+    });
+
+    const buttons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("ticket_claim").setLabel("🧑‍✈️ Claim").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("ticket_close").setLabel("🔒 Fermer").setStyle(ButtonStyle.Danger)
+    );
+
+    channel.send({ content: `🎟️ Ticket de ${user}`, components: [buttons] });
+    return interaction.reply({ content: `✅ Ticket créé : ${channel}`, ephemeral: true });
+  }
+
+  // CLAIM
+  if (interaction.isButton() && interaction.customId === "ticket_claim") {
+    if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
+      return interaction.reply({ content: "❌ Staff uniquement.", ephemeral: true });
+
+    return interaction.reply(`🧑‍✈️ Ticket claim par ${interaction.user}`);
+  }
+
+  // CLOSE
+  if (interaction.isButton() && interaction.customId === "ticket_close") {
+    await interaction.reply("🔒 Fermeture...");
+    await closeTicket(interaction.channel);
+  }
+});
+
+// ================= CLOSE FUNCTION =================
+async function closeTicket(channel) {
+  const filePath = await createTranscriptHTML(channel);
+  const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+
+  const userId = channel.topic;
+  if (userId) {
+    const user = await client.users.fetch(userId).catch(() => null);
+    if (user) await user.send({ files: [filePath] }).catch(() => {});
+  }
+
+  await logChannel.send({ files: [filePath] });
+  setTimeout(() => {
+    fs.unlinkSync(filePath);
+    channel.delete().catch(() => {});
+  }, 4000);
+}
 
 // ================= DERANK =================
 async function executeDM(member) {
@@ -266,4 +265,3 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
-
