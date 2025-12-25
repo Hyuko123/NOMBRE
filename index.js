@@ -18,7 +18,6 @@ const SERVER_NAME = "70’s";
 
 // ROLES
 const STAFF_ROLE_ID = "1449815862168129708";
-const CITIZEN_ROLE_ID = "1452059862723985541";
 
 // CHANNELS
 const LOG_CHANNEL_ID = "1453447170240811069";
@@ -43,8 +42,7 @@ client.once("ready", () => {
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
-  const command = args.shift().toLowerCase();
+  const command = message.content.slice(PREFIX.length).trim().toLowerCase();
 
   // ---------- PANEL TICKET ----------
   if (command === "ticketpanel") {
@@ -67,14 +65,13 @@ client.on("messageCreate", async message => {
       .setDescription("Choisis une catégorie pour ouvrir un ticket.")
       .setColor("#f1c40f");
 
-    return message.channel.send({
+    await message.channel.send({
       embeds: [embed],
       components: [menu]
     });
   }
 });
 
-// ================= INTERACTIONS =================
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
 
@@ -144,17 +141,6 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-
-  // ---------- FERMETURE TICKET ----------
-  if (interaction.isButton() && interaction.customId === "ticket_close") {
-    if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
-      return interaction.reply({ content: "❌ Staff uniquement.", ephemeral: true });
-
-    await interaction.reply({ content: "🔒 Fermeture du ticket...", ephemeral: true });
-    await closeTicket(interaction.channel, interaction.user);
-  }
-});
-
 // ================= FERMETURE + TRANSCRIPT =================
 async function closeTicket(channel, staffUser) {
   const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
@@ -189,6 +175,3 @@ async function closeTicket(channel, staffUser) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
-
-
-
