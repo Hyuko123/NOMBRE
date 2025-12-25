@@ -1,3 +1,9 @@
+console.log({
+  TOKEN: TOKEN ? "OK" : "MANQUANT",
+  CLIENT_ID,
+  GUILD_ID
+});
+
 const { REST, Routes, SlashCommandBuilder } = require("discord.js");
 
 const TOKEN = process.env.TOKEN;
@@ -40,3 +46,4 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
     console.error(error);
   }
 })();
+
