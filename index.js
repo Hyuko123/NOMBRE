@@ -98,18 +98,6 @@ async function updateMemberCount(guild) {
 client.on("guildMemberAdd", m => updateMemberCount(m.guild));
 client.on("guildMemberRemove", m => updateMemberCount(m.guild));
 
-// ================= RADIO =================
-cron.schedule("0 15 * * *", async () => {
-  const channel = await client.channels.fetch(RADIO_CHANNEL_ID).catch(() => null);
-  if (!channel) return;
-
-  const random = Math.floor(Math.random() * 999) + 1;
-  channel.send({
-    content: `<@&${ROLE_70S_ID}> 📻 **Radio du jour — ${SERVER_NAME}**\n🎲 Radio : ${random}`,
-    allowedMentions: { roles: [ROLE_70S_ID] }
-  });
-});
-
 // ================= PREFIX COMMANDES =================
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
@@ -310,3 +298,4 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
