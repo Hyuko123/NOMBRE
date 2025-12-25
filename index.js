@@ -261,8 +261,9 @@ async function createTranscriptHTML(channel) {
   const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
   fs.writeFileSync(filePath, html);
   return filePath;
-}
+});
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
 
