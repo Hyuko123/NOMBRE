@@ -95,7 +95,7 @@ client.on("messageCreate", async message => {
 
     await message.delete().catch(() => {});
     return message.channel.send({
-      content: "@everyone",
+      content: "<@1449815862168129708>",
       embeds: [embed]
     });
   }
@@ -260,3 +260,4 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
