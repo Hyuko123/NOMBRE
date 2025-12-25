@@ -139,61 +139,81 @@ client.on("messageCreate", async message => {
     }
   }
 
-  // ---------- GANG ----------
-  if (command === "gang") {
-    const sub = args.shift()?.toLowerCase();
+ // ---------- GANG ----------
+if (command === "gang") {
+  const sub = args.shift()?.toLowerCase();
 
-    // ADD
-    if (sub === "add") {
-      const member = message.mentions.members.first();
-      const rank = args[0]?.toLowerCase();
-      if (!member || !GANG_HIERARCHY[rank]) {
-        return message.reply("❌ `+gang add @user og|bigg|lilgangsta|lilhomies|littleboys`");
-      }
-
-      await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
-      await member.roles.remove(ROLE_HG_ID).catch(() => {});
-      await member.roles.add(GANG_HIERARCHY[rank]);
-
-      if (!member.roles.cache.has(CITIZEN_ROLE_ID))
-        await member.roles.add(CITIZEN_ROLE_ID);
-
-      if (!member.roles.cache.has(ROLE_70S_ID))
-        await member.roles.add(ROLE_70S_ID);
-
-      if (rank === "og")
-        await member.roles.add(ROLE_HG_ID);
-
-      return message.reply(`✅ ${member} ajouté comme **${rank.toUpperCase()}**`);
+  // ===== ADD =====
+  if (sub === "add") {
+    const member = message.mentions.members.first();
+    if (!member) {
+      return message.reply("❌ Utilisation : `+gang add @user og|bigg|lilgangsta|lilhomies|littleboys`");
     }
 
-    // REMOVE
-    if (sub === "remove") {
-      const member = message.mentions.members.first();
-      if (!member) return message.reply("❌ Mention manquante.");
+    // 🔥 on enlève la mention des args
+    args.shift();
+    const rank = args[0]?.toLowerCase();
 
-      await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
-      await member.roles.remove([ROLE_HG_ID, ROLE_70S_ID]).catch(() => {});
-      return message.reply(`❌ ${member} retiré du gang`);
+    if (!rank || !GANG_HIERARCHY[rank]) {
+      return message.reply("❌ Rang invalide : og | bigg | lilgangsta | lilhomies | littleboys");
     }
 
-    // LIST
-    if (sub === "list") {
-      let desc = "";
-      for (const [rank, id] of Object.entries(GANG_HIERARCHY)) {
-        const role = message.guild.roles.cache.get(id);
-        const members = role?.members.map(m => `• ${m.user.tag}`).join("\n") || "—";
-        desc += `**${rank.toUpperCase()}**\n${members}\n\n`;
-      }
+    // Remove anciens rôles gang + HG
+    await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
+    await member.roles.remove(ROLE_HG_ID).catch(() => {});
 
-      const embed = new EmbedBuilder()
-        .setTitle("📋 Hiérarchie du Gang")
-        .setColor("#f1c40f")
-        .setDescription(desc);
+    // Ajout rôle gang
+    await member.roles.add(GANG_HIERARCHY[rank]);
 
-      return message.channel.send({ embeds: [embed] });
+    // Rôles obligatoires
+    if (!member.roles.cache.has(CITIZEN_ROLE_ID))
+      await member.roles.add(CITIZEN_ROLE_ID);
+
+    if (!member.roles.cache.has(ROLE_70S_ID))
+      await member.roles.add(ROLE_70S_ID);
+
+    // HG uniquement pour OG
+    if (rank === "og") {
+      await member.roles.add(ROLE_HG_ID);
     }
+
+    return message.reply(`✅ ${member} ajouté comme **${rank.toUpperCase()}**`);
   }
+
+  // ===== REMOVE =====
+  if (sub === "remove") {
+    const member = message.mentions.members.first();
+    if (!member) return message.reply("❌ Mention manquante.");
+
+    await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
+    await member.roles.remove(ROLE_HG_ID).catch(() => {});
+    await member.roles.remove(ROLE_70S_ID).catch(() => {});
+
+    return message.reply(`❌ ${member} retiré du gang`);
+  }
+
+  // ===== LIST =====
+  if (sub === "list") {
+    let desc = "";
+
+    for (const [rank, roleId] of Object.entries(GANG_HIERARCHY)) {
+      const role = message.guild.roles.cache.get(roleId);
+      const members =
+        role && role.members.size > 0
+          ? role.members.map(m => `• ${m.user.tag}`).join("\n")
+          : "—";
+
+      desc += `**${rank.toUpperCase()}**\n${members}\n\n`;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 Hiérarchie du Gang")
+      .setColor("#f1c40f")
+      .setDescription(desc);
+
+    return message.channel.send({ embeds: [embed] });
+  }
+}
 
   // ---------- CLOSE TICKET ----------
   if (command === "close" && message.channel.name?.startsWith("ticket-")) {
@@ -246,3 +266,4 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
