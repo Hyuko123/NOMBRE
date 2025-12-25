@@ -68,7 +68,7 @@ const client = new Client({
 // ================= SLASH COMMAND REGISTER =================
 const commands = [
   new SlashCommandBuilder()
-    .setName("help")
+    .setName("commandes")
     .setDescription("Afficher la liste des commandes du bot")
 ].map(c => c.toJSON());
 
@@ -215,7 +215,7 @@ client.on("messageCreate", async message => {
 client.on("interactionCreate", async interaction => {
 
   // ----- /help -----
-  if (interaction.isChatInputCommand() && interaction.commandName === "help") {
+  if (interaction.isChatInputCommand() && interaction.commandName === "commandes") {
     const embed = new EmbedBuilder()
       .setTitle("📌 Commandes du bot — 70’s")
       .setColor("#f1c40f")
@@ -312,4 +312,5 @@ async function createTranscriptHTML(channel) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
 
