@@ -1,36 +1,25 @@
-console.log({
-  TOKEN: TOKEN ? "OK" : "MANQUANT",
-  CLIENT_ID,
-  GUILD_ID
-});
-
-const { REST, Routes, SlashCommandBuilder } = require("discord.js");
+require("dotenv").config();
+const fs = require("fs");
+const path = require("path");
+const { REST, Routes } = require("discord.js");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-const commands = [
-  new SlashCommandBuilder()
-    .setName("cmd")
-    .setDescription("📜 Affiche toutes les commandes disponibles"),
+if (!TOKEN || !CLIENT_ID || !GUILD_ID) {
+  console.error("❌ Variables d’environnement manquantes");
+  process.exit(1);
+}
 
-  new SlashCommandBuilder()
-    .setName("gang")
-    .setDescription("Gestion du gang")
-    .addSubcommand(sub =>
-      sub
-        .setName("list")
-        .setDescription("Voir la hiérarchie du gang")
-    ),
+const commands = [];
+const commandsPath = path.join(__dirname, "commands");
 
-  new SlashCommandBuilder()
-    .setName("annonce")
-    .setDescription("📢 Envoyer une annonce")
-    .addStringOption(opt =>
-      opt.setName("message").setDescription("Contenu").setRequired(true)
-    ),
-].map(cmd => cmd.toJSON());
+for (const file of fs.readdirSync(commandsPath)) {
+  if (!file.endsWith(".js")) continue;
+  const command = require(`./commands/${file}`);
+  if (command.data) commands.push(command.data.toJSON());
+}
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
@@ -42,9 +31,7 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
       { body: commands }
     );
     console.log("✅ Slash commands déployées !");
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error("❌ Erreur deploy :", err);
   }
 })();
-
-

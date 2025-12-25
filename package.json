@@ -12,6 +12,8 @@
   "type": "commonjs",
   "dependencies": {
     "discord.js": "^14.25.1",
-    "node-cron": "^4.2.1"
+    "dotenv": "^17.2.3",
+    "node-cron": "^4.2.1",
+    "puppeteer": "^24.34.0"
   }
 }
