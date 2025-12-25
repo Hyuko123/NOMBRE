@@ -75,41 +75,60 @@ client.on("messageCreate", async message => {
 });
 
 // ================= INTERACTIONS =================
-client.on("interactionCreate", async interaction => {
+if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
 
-  // ---------- CREATION TICKET ----------
-  if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
-    const guild = interaction.guild;
-    const user = interaction.user;
+  // ✅ On ACK immédiatement
+  await interaction.deferReply({ ephemeral: true });
 
-    if (guild.channels.cache.find(c => c.topic === user.id))
-      return interaction.reply({ content: "❌ Tu as déjà un ticket ouvert.", ephemeral: true });
+  const guild = interaction.guild;
+  const user = interaction.user;
 
-    const channel = await guild.channels.create({
-      name: `ticket-${user.username}`,
-      parent: TICKET_CATEGORY_ID,
-      topic: user.id,
-      permissionOverwrites: [
-        { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-      ]
-    });
-
-    const buttons = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("ticket_close")
-        .setLabel("Fermer")
-        .setStyle(ButtonStyle.Danger)
-    );
-
-    await channel.send({
-      content: `🎟️ Ticket ouvert par ${user}`,
-      components: [buttons]
-    });
-
-    return interaction.reply({ content: `✅ Ticket créé : ${channel}`, ephemeral: true });
+  // Anti double ticket
+  if (guild.channels.cache.find(c => c.topic === user.id)) {
+    return interaction.editReply("❌ Tu as déjà un ticket ouvert.");
   }
+
+  const channel = await guild.channels.create({
+    name: `ticket-${user.username}`,
+    parent: TICKET_CATEGORY_ID,
+    topic: user.id,
+    permissionOverwrites: [
+      {
+        id: guild.id,
+        deny: [PermissionsBitField.Flags.ViewChannel]
+      },
+      {
+        id: user.id,
+        allow: [
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.SendMessages
+        ]
+      },
+      {
+        id: STAFF_ROLE_ID,
+        allow: [
+          PermissionsBitField.Flags.ViewChannel,
+          PermissionsBitField.Flags.SendMessages
+        ]
+      }
+    ]
+  });
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("ticket_close")
+      .setLabel("Fermer")
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  await channel.send({
+    content: `🎟️ Ticket ouvert par ${user}`,
+    components: [buttons]
+  });
+
+  // ✅ On répond APRES
+  await interaction.editReply(`✅ Ticket créé : ${channel}`);
+}
 
   // ---------- FERMETURE TICKET ----------
   if (interaction.isButton() && interaction.customId === "ticket_close") {
@@ -155,3 +174,4 @@ async function closeTicket(channel, staffUser) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
+
