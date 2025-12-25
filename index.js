@@ -10,7 +10,10 @@ const {
   InteractionType,
   PermissionsBitField,
   EmbedBuilder,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  REST,
+  Routes,
+  SlashCommandBuilder
 } = require("discord.js");
 
 const cron = require("node-cron");
@@ -19,6 +22,7 @@ const path = require("path");
 
 // ================= CONFIG =================
 const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 const PREFIX = "+";
 const SERVER_NAME = "70’s";
 
@@ -45,7 +49,6 @@ const ALL_GANG_ROLES = Object.values(GANG_HIERARCHY);
 
 // CHANNELS
 const RADIO_CHANNEL_ID = "1449816618187227249";
-const PANEL_CHANNEL_ID = "1449818419083087902";
 const LOG_CHANNEL_ID = "1453447170240811069";
 const TICKET_CATEGORY_ID = "1453524406499414192";
 const MEMBER_COUNT_CHANNEL_ID = "1453529232360603648";
@@ -59,6 +62,27 @@ const client = new Client({
     GatewayIntentBits.GuildMembers
   ]
 });
+
+// ================= SLASH COMMAND REGISTER =================
+const commands = [
+  new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Afficher la liste des commandes du bot")
+].map(c => c.toJSON());
+
+const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ Slash command /help enregistrée");
+  } catch (err) {
+    console.error(err);
+  }
+})();
 
 // ================= READY =================
 client.once("ready", () => {
@@ -86,7 +110,7 @@ cron.schedule("0 15 * * *", async () => {
   });
 });
 
-// ================= COMMANDES =================
+// ================= PREFIX COMMANDES =================
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
@@ -127,21 +151,19 @@ client.on("messageCreate", async message => {
 
     if (!member.roles.cache.has(WARN_1_ROLE_ID)) {
       await member.roles.add(WARN_1_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 1**\n📄 ${reason}`);
+      return message.reply(`⚠️ ${member} → **Avertissement 1**`);
     }
 
-    if (member.roles.cache.has(WARN_1_ROLE_ID) && !member.roles.cache.has(WARN_2_ROLE_ID)) {
+    if (!member.roles.cache.has(WARN_2_ROLE_ID)) {
       await member.roles.remove(WARN_1_ROLE_ID);
       await member.roles.add(WARN_2_ROLE_ID);
-      return message.reply(`⚠️ ${member} → **Avertissement 2**\n📄 ${reason}`);
+      return message.reply(`⚠️ ${member} → **Avertissement 2**`);
     }
 
-    if (member.roles.cache.has(WARN_2_ROLE_ID)) {
-      await member.roles.remove(WARN_2_ROLE_ID);
-      await member.roles.add(WARN_3_ROLE_ID);
-      await message.reply(`🚨 ${member} → **Avertissement 3**\n📄 ${reason}`);
-      await executeDM(member);
-    }
+    await member.roles.remove(WARN_2_ROLE_ID);
+    await member.roles.add(WARN_3_ROLE_ID);
+    await executeDM(member);
+    return message.reply(`🚨 ${member} → **Avertissement 3 (derank)**`);
   }
 
   // ---------- GANG ----------
@@ -150,27 +172,24 @@ client.on("messageCreate", async message => {
 
     if (sub === "add") {
       const member = message.mentions.members.first();
-      if (!member) return message.reply("❌ Mention manquante.");
-
       args.shift();
       const rank = args[0]?.toLowerCase();
-      if (!GANG_HIERARCHY[rank])
-        return message.reply("❌ og | bigg | lilgangsta | lilhomies | littleboys");
 
-      await member.roles.remove(ALL_GANG_ROLES).catch(() => {});
-      await member.roles.remove(ROLE_HG_ID).catch(() => {});
+      if (!member || !GANG_HIERARCHY[rank])
+        return message.reply("❌ +gang add @user og|bigg|lilgangsta|lilhomies|littleboys");
+
+      await member.roles.remove(ALL_GANG_ROLES);
+      await member.roles.remove(ROLE_HG_ID);
       await member.roles.add(GANG_HIERARCHY[rank]);
       await member.roles.add([ROLE_70S_ID, CITIZEN_ROLE_ID]);
 
       if (rank === "og") await member.roles.add(ROLE_HG_ID);
-
       return message.reply(`✅ ${member} ajouté **${rank.toUpperCase()}**`);
     }
 
     if (sub === "remove") {
       const member = message.mentions.members.first();
       if (!member) return message.reply("❌ Mention manquante.");
-
       await member.roles.remove([...ALL_GANG_ROLES, ROLE_HG_ID, ROLE_70S_ID]);
       return message.reply(`❌ ${member} retiré du gang`);
     }
@@ -193,6 +212,35 @@ client.on("messageCreate", async message => {
 // ================= INTERACTIONS =================
 client.on("interactionCreate", async interaction => {
 
+  // ----- /help -----
+  if (interaction.isChatInputCommand() && interaction.commandName === "help") {
+    const embed = new EmbedBuilder()
+      .setTitle("📌 Commandes du bot — 70’s")
+      .setColor("#f1c40f")
+      .setDescription(`
+**📢 Annonce**
+\`+annonce <message>\`
+
+**⚠️ Avertissements**
+\`+avert @user <raison>\`
+
+**🧢 Gangs**
+\`+gang add @user og|bigg|lilgangsta|lilhomies|littleboys\`
+\`+gang remove @user\`
+\`+gang list\`
+
+**🎟️ Tickets**
+\`+ticketpanel\` → ouvrir le panel  
+Boutons : Claim / Fermer
+
+**📻 Automatique**
+Radio quotidienne • Compteur membres
+      `);
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  // ----- Ticket menu -----
   if (interaction.isStringSelectMenu() && interaction.customId === "ticket_select") {
     const guild = interaction.guild;
     const user = interaction.user;
@@ -216,19 +264,12 @@ client.on("interactionCreate", async interaction => {
       new ButtonBuilder().setCustomId("ticket_close").setLabel("Fermer").setStyle(ButtonStyle.Danger)
     );
 
-    channel.send({
+    await channel.send({
       content: `🎟️ **Ticket ${interaction.values[0]}** — ${user}`,
       components: [buttons]
     });
 
     return interaction.reply({ content: `✅ Ticket créé : ${channel}`, ephemeral: true });
-  }
-
-  if (interaction.isButton() && interaction.customId === "ticket_claim") {
-    if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
-      return interaction.reply({ content: "❌ Staff uniquement.", ephemeral: true });
-
-    return interaction.reply(`🧑‍✈️ Claim par ${interaction.user}`);
   }
 
   if (interaction.isButton() && interaction.customId === "ticket_close") {
@@ -237,17 +278,10 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// ================= CLOSE TICKET =================
+// ================= CLOSE / DERANK / TRANSCRIPT =================
 async function closeTicket(channel) {
   const filePath = await createTranscriptHTML(channel);
   const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-
-  const userId = channel.topic;
-  if (userId) {
-    const user = await client.users.fetch(userId).catch(() => null);
-    if (user) await user.send({ files: [filePath] }).catch(() => {});
-  }
-
   await logChannel.send({ files: [filePath] });
   setTimeout(() => {
     fs.unlinkSync(filePath);
@@ -255,31 +289,20 @@ async function closeTicket(channel) {
   }, 4000);
 }
 
-// ================= DERANK =================
 async function executeDM(member) {
   for (const role of member.roles.cache.values()) {
-    if (
-      role.id === member.guild.id ||
-      role.id === CITIZEN_ROLE_ID ||
-      [WARN_1_ROLE_ID, WARN_2_ROLE_ID].includes(role.id)
-    ) continue;
-
+    if (role.id === member.guild.id || role.id === CITIZEN_ROLE_ID) continue;
     if (role.editable) await member.roles.remove(role).catch(() => {});
   }
-  await member.roles.remove(WARN_3_ROLE_ID).catch(() => {});
 }
 
-// ================= TRANSCRIPT =================
 async function createTranscriptHTML(channel) {
   const messages = await channel.messages.fetch({ limit: 100 });
   const sorted = [...messages.values()].reverse();
-
-  let html = `<html><body style="background:#313338;color:#dcddde;font-family:Arial">`;
-  for (const msg of sorted) {
-    html += `<p><b>${msg.author.tag}</b> : ${msg.content || ""}</p>`;
-  }
+  let html = `<html><body style="background:#313338;color:#dcddde">`;
+  for (const msg of sorted)
+    html += `<p><b>${msg.author.tag}</b> : ${msg.content}</p>`;
   html += "</body></html>";
-
   const filePath = path.join(__dirname, `transcript-${channel.id}.html`);
   fs.writeFileSync(filePath, html);
   return filePath;
