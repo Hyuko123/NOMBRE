@@ -49,18 +49,15 @@ client.once("ready", () => {
   console.log(`✅ Bot ${SERVER_NAME} connecté`);
 });
 
-// ================= COMMANDES =================
+// ================= COMMANDES PREFIX =================
 client.on("messageCreate", async message => {
-  console.log("MESSAGE:", message.content);
-
   if (message.author.bot) return;
   if (!message.content.startsWith(PREFIX)) return;
-
 
   const args = message.content.slice(PREFIX.length).trim().split(/ +/);
   const command = args.shift()?.toLowerCase();
 
-  // ---------- PANEL TICKET ----------
+  // ---------- TICKET PANEL ----------
   if (command === "ticketpanel") {
     if (!message.member.roles.cache.has(STAFF_ROLE_ID))
       return message.reply("❌ Staff uniquement.");
@@ -76,25 +73,23 @@ client.on("messageCreate", async message => {
         ])
     );
 
-   const embed = new EmbedBuilder()
-  .setTitle("🎟️ Ticket 70’s")
-  .setDescription(
-    "**Bienvenue sur le support officiel de 70’s Crew** 👋\n\n" +
-    "Ce système de ticket est mis à votre disposition afin de traiter **toutes vos demandes** de manière rapide, claire et efficace.\n\n" +
-    "📌 **Vous pouvez ouvrir un ticket pour :**\n" +
-    "🆘 Obtenir de l’aide ou un renseignement\n" +
-    "🧑‍💼 Faire une **demande de recrutement**\n" +
-    "⚠️ Signaler un problème\n" +
-    "📂 Toute autre demande liée au groupe\n\n" +
-    "👉 **Sélectionnez la catégorie correspondante ci-dessous** afin que notre équipe puisse vous répondre dans les meilleurs délais.\n\n" +
-    "Merci de rester **clair, respectueux et patient** lors de votre échange avec le staff."
-  )
-  .setColor("#f1c40f")
-  .setFooter({
-    text: "70’s Crew • Support",
-    iconURL: client.user.displayAvatarURL()
-  })
-  .setTimestamp();
+    const embed = new EmbedBuilder()
+      .setTitle("🎟️ Ticket 70’s")
+      .setDescription(
+        "**Bienvenue sur le support officiel de 70’s Crew** 👋\n\n" +
+        "Ce système de ticket est prévu pour **toutes vos demandes** :\n\n" +
+        "🆘 Aide & renseignements\n" +
+        "🧑‍💼 Recrutement\n" +
+        "⚠️ Problèmes ou signalements\n\n" +
+        "Merci de rester **respectueux et clair** avec le staff."
+      )
+      .setColor("#f1c40f")
+      .setFooter({ text: "70’s Crew • Support" })
+      .setTimestamp();
+
+    return message.channel.send({ embeds: [embed], components: [menu] });
+  }
+
   // ================= 🧢 GANG =================
   if (command === "gang") {
     const sub = args.shift()?.toLowerCase();
@@ -102,17 +97,18 @@ client.on("messageCreate", async message => {
 
     // +gang add @user rank
     if (sub === "add") {
-      const rank = args[1]?.toLowerCase();
+      const rank = args[0]?.toLowerCase();
+
       if (!member || !GANG_HIERARCHY[rank]) {
         return message.reply(
-          "❌ Utilisation : `+gang add @user og|bigg|lilgangsta|lilhomies|littleboys`"
+          "❌ `+gang add @user og|bigg|lilgangsta|lilhomies|littleboys`"
         );
       }
 
       await member.roles.remove(ALL_GANG_ROLES);
       await member.roles.add(GANG_HIERARCHY[rank]);
 
-      return message.reply(`✅ ${member} ajouté au gang **${rank.toUpperCase()}**`);
+      return message.reply(`✅ ${member} ajouté **${rank.toUpperCase()}**`);
     }
 
     // +gang remove @user
@@ -177,7 +173,11 @@ client.on("interactionCreate", async interaction => {
         .setStyle(ButtonStyle.Danger)
     );
 
-    await channel.send({ content: `🎟️ Ticket ouvert par ${user}`, components: [buttons] });
+    await channel.send({
+      content: `🎟️ Ticket ouvert par ${user}`,
+      components: [buttons]
+    });
+
     return interaction.editReply(`✅ Ticket créé : ${channel}`);
   }
 
@@ -191,20 +191,28 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-// ================= TRANSCRIPT =================
+// ================= TRANSCRIPT HTML =================
 async function closeTicket(channel, staffUser) {
   const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
   const messages = await channel.messages.fetch({ limit: 100 });
   const sorted = [...messages.values()].reverse();
 
   let html = `
-  <html><body style="background:#2b2d31;color:#dcddde;font-family:Arial;padding:20px">
+  <html>
+  <body style="background:#2b2d31;color:#dcddde;font-family:Arial;padding:20px">
   <h2>🎟️ ${channel.name}</h2>
-  <p>🛡️ Fermé par ${staffUser.tag}</p><hr>
+  <p>🛡️ Fermé par ${staffUser.tag}</p>
+  <hr>
   `;
 
   for (const msg of sorted) {
-    html += `<p><b>${msg.author.tag}</b> (${msg.createdAt.toLocaleString()})<br>${msg.content || "[Pièce jointe]"}</p>`;
+    html += `
+      <p>
+        <b>${msg.author.tag}</b>
+        <small>(${msg.createdAt.toLocaleString()})</small><br>
+        ${msg.content || "[Pièce jointe]"}
+      </p>
+    `;
   }
 
   html += "</body></html>";
@@ -232,5 +240,3 @@ async function closeTicket(channel, staffUser) {
 
 // ================= LOGIN =================
 client.login(TOKEN);
-
-
